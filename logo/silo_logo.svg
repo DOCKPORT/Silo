@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="App logo: eight solid grey pie slices in a light grey circle">
+
+  <!-- One light grey outline circle -->
+  <circle cx="256" cy="256" r="188" fill="none" stroke="#b8b8b8" stroke-width="8"/>
+
+  <!-- 8 teardrop petals: small rounded dome at the rim, fine point at center, inside the light grey border -->
+  <g fill="#b8b8b8" stroke="#b8b8b8" stroke-width="14" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M224 104 Q240 95 256 95 Q272 95 288 104 L256 249 Z" transform="rotate(0 256 256)"/>
+    <path d="M224 104 Q240 95 256 95 Q272 95 288 104 L256 249 Z" transform="rotate(45 256 256)"/>
+    <path d="M224 104 Q240 95 256 95 Q272 95 288 104 L256 249 Z" transform="rotate(90 256 256)"/>
+    <path d="M224 104 Q240 95 256 95 Q272 95 288 104 L256 249 Z" transform="rotate(135 256 256)"/>
+    <path d="M224 104 Q240 95 256 95 Q272 95 288 104 L256 249 Z" transform="rotate(180 256 256)"/>
+    <path d="M224 104 Q240 95 256 95 Q272 95 288 104 L256 249 Z" transform="rotate(225 256 256)"/>
+    <path d="M224 104 Q240 95 256 95 Q272 95 288 104 L256 249 Z" transform="rotate(270 256 256)"/>
+    <path d="M224 104 Q240 95 256 95 Q272 95 288 104 L256 249 Z" transform="rotate(315 256 256)"/>
+  </g>
+</svg>

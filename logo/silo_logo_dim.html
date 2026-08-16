@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Minimal Sliced Logo - Dark Greyscale</title>
+<style>
+  * {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+  }
+
+  body {
+    background: #0a0d10;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .stage {
+    width: 520px;
+    height: 520px;
+    border-radius: 26px;
+    background: #0a0d10;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.6);
+  }
+
+  svg {
+    display: block;
+    width: 460px;
+    height: 460px;
+  }
+</style>
+</head>
+<body>
+  <div class="stage">
+    <svg viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="App logo: eight solid dark grey pie slices in a dark grey circle">
+
+      <!-- One dark grey outline circle -->
+      <circle cx="256" cy="256" r="188" fill="none" stroke="#4a4a4a" stroke-width="8"/>
+
+      <!-- 8 teardrop petals: small rounded dome at the rim, fine point at center, inside the dark grey border -->
+      <g fill="#4a4a4a" stroke="#4a4a4a" stroke-width="14" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M224 104 Q240 95 256 95 Q272 95 288 104 L256 249 Z" transform="rotate(0 256 256)"/>
+        <path d="M224 104 Q240 95 256 95 Q272 95 288 104 L256 249 Z" transform="rotate(45 256 256)"/>
+        <path d="M224 104 Q240 95 256 95 Q272 95 288 104 L256 249 Z" transform="rotate(90 256 256)"/>
+        <path d="M224 104 Q240 95 256 95 Q272 95 288 104 L256 249 Z" transform="rotate(135 256 256)"/>
+        <path d="M224 104 Q240 95 256 95 Q272 95 288 104 L256 249 Z" transform="rotate(180 256 256)"/>
+        <path d="M224 104 Q240 95 256 95 Q272 95 288 104 L256 249 Z" transform="rotate(225 256 256)"/>
+        <path d="M224 104 Q240 95 256 95 Q272 95 288 104 L256 249 Z" transform="rotate(270 256 256)"/>
+        <path d="M224 104 Q240 95 256 95 Q272 95 288 104 L256 249 Z" transform="rotate(315 256 256)"/>
+      </g>
+    </svg>
+  </div>
+</body>
+</html>

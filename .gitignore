@@ -1,0 +1,22 @@
+# Ignore everything at the repository root
+/*
+
+# ...except the source_code tree
+!/source_code/
+!/source_code/**
+
+# ...except the README and the logo banner
+!/README.md
+!/logo/
+!/logo/**
+
+# Rust build output
+/source_code/target/
+/source_code/modules/target/
+
+# Editor / OS junk (anywhere under source_code)
+**/*.swp
+**/.vscode/
+**/.idea/
+**/.DS_Store
+**/Thumbs.db
