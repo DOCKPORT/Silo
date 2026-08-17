@@ -3,7 +3,7 @@
 # Silo
 
 Silo is an rsync GUI application. It lets you define a body of data — a "silo" — by selecting & excluding folders from source, then mirror that silo to a destination with rsync. The interface will also show you an analytical breakdown of your populated silo.
-The interface carries a sci-fi theme inspired by the TV show *Silo*.
+The UI interface carries a theme inspired by the TV show *Silo*.
 
 > **Status: Early development.**
 > This project is in the early stages of development.
