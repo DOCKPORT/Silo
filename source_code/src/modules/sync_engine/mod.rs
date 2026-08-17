@@ -5,17 +5,20 @@
 //! as a subprocess, capturing its output. Sync uses `--delete` so the
 //! destination is a 100% mirror of the source.
 //!
-//! Design: the engine is split into three internal pieces:
+//! Design: the engine is split into four internal pieces:
 //! - [`command`]: pure command builder (no I/O)
+//! - [`dry_run`]: simulation without writing files
 //! - [`runner`]: validation + subprocess execution
 //! - [`error`]: typed errors
 
 mod command;
+mod dry_run;
 mod error;
 mod runner;
 
 use std::path::PathBuf;
 
+pub use dry_run::{dry_run, DryRunOutcome};
 pub use error::SyncError;
 
 /// The inputs for a sync operation.

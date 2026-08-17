@@ -43,6 +43,22 @@ pub(crate) fn build(plan: &SyncPlan) -> Command {
     cmd
 }
 
+/// Build a rsync `Command` for a dry run simulation.
+///
+/// The command is identical to a real sync, with three extra flags:
+/// - `--dry-run`: simulate the transfer without writing any files
+/// - `--itemize-changes`: list every change with a detail prefix
+/// - `--stats`: report totals such as file count and byte count
+///
+/// The command is not executed. The caller decides how to run and wait on it.
+pub(crate) fn build_dry_run(plan: &SyncPlan) -> Command {
+    let mut cmd = build(plan);
+    cmd.arg("--dry-run");
+    cmd.arg("--itemize-changes");
+    cmd.arg("--stats");
+    cmd
+}
+
 /// Remove a trailing slash from a path.
 ///
 /// This makes the source an exact folder reference so rsync copies the folder
