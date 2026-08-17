@@ -60,11 +60,7 @@ impl<Message> Program<Message> for Scanlines {
 
         let mut y = 0.0_f32;
         while y < bounds.height {
-            frame.fill_rectangle(
-                Point::new(0.0, y),
-                Size::new(bounds.width, thickness),
-                fill,
-            );
+            frame.fill_rectangle(Point::new(0.0, y), Size::new(bounds.width, thickness), fill);
             y += spacing;
         }
 

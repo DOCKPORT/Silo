@@ -5,6 +5,7 @@
 //! and, later, the view components for populating the silo, configuring the
 //! sync engine, and displaying status.
 
+pub mod font;
 pub mod mainwindow;
 pub mod scaling;
 pub mod scanlines;

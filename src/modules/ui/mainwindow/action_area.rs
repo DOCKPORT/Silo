@@ -6,11 +6,11 @@
 //! the action controls (populate silo, configure sync, run sync, status).
 
 use iced::mouse;
-use iced::widget::{container, svg, text, MouseArea, Stack};
+use iced::widget::{MouseArea, Row, Stack, container, svg, text};
 use iced::{Color, Element, Length, Padding, Shadow, Vector};
 
 use crate::modules::ui::scaling::sp;
-use crate::modules::ui::theme::{DETAIL, ORANGE};
+use crate::modules::ui::theme::{BACK, DETAIL, ORANGE, TEAL};
 
 use super::Message;
 
@@ -50,6 +50,27 @@ const DETAIL_LINE_THICKNESS: f32 = 2.0;
 
 /// The gap between the logo's right edge and the start of the detail line.
 const DETAIL_GAP: f32 = 5.0;
+
+/// The font size of the status labels, in reference pixels.
+const TEXT_SIZE: f32 = 30.0;
+
+/// The horizontal spacing between the two status labels, in reference px.
+const LABEL_SPACING: f32 = 60.0;
+
+/// The size of the square separator icons, in reference pixels.
+const SEPARATOR_SIZE: f32 = 10.0;
+
+/// The font size of the CONFIG button text, in reference pixels.
+const CONFIG_TEXT_SIZE: f32 = 22.0;
+
+/// The fixed height of the CONFIG button, in reference pixels.
+const CONFIG_BUTTON_HEIGHT: f32 = 56.0;
+
+/// The internal horizontal padding of the CONFIG button, in reference px.
+const CONFIG_PAD_H: f32 = 30.0;
+
+/// The gap between the right window edge and the CONFIG button, in reference px.
+const CONFIG_RIGHT_PADDING: f32 = 20.0;
 
 /// The vertical center of the band between the two orange rules.
 fn band_center() -> f32 {
@@ -166,13 +187,113 @@ fn detail_line() -> Element<'static, Message> {
         .into()
 }
 
+/// Builds a teal status label, sized for the action area.
+fn status_label(content: &'static str) -> Element<'static, Message> {
+    text(content).size(sp(TEXT_SIZE)).color(TEAL).into()
+}
+
+/// Builds a small filled square used as a separator between labels.
+fn separator() -> Element<'static, Message> {
+    container(text(""))
+        .width(Length::Fixed(sp(SEPARATOR_SIZE)))
+        .height(Length::Fixed(sp(SEPARATOR_SIZE)))
+        .style(|_| container::Style {
+            background: Some(DETAIL.into()),
+            ..container::Style::default()
+        })
+        .into()
+}
+
+/// Builds the two status labels, vertically centered above the center line.
+///
+/// The labels sit to the right of the logo (same left offset as the detail
+/// line) and are centered in the space between the top orange rule and the
+/// center line.
+fn status_labels() -> Element<'static, Message> {
+    let region_top = TOP_GAP + LINE_THICKNESS;
+    let region_bottom = band_center() - DETAIL_LINE_THICKNESS / 2.0;
+    let label_top = region_top + (region_bottom - region_top - TEXT_SIZE) / 2.0;
+    let left = LOGO_LEFT_GAP + LOGO_SIZE + DETAIL_GAP;
+
+    let row = Row::new()
+        .align_y(iced::alignment::Vertical::Center)
+        .spacing(sp(LABEL_SPACING))
+        .push(status_label("STATUS: NOT POPULATED"))
+        .push(separator())
+        .push(status_label("LAST SYNC: --/--/----"))
+        .push(separator())
+        .push(status_label("SILO SIZE: 5.46GB"));
+
+    container(row)
+        .width(Length::Fill)
+        .height(Length::Fill)
+        .padding(Padding {
+            top: sp(label_top),
+            bottom: 0.0,
+            left: sp(left),
+            right: 0.0,
+        })
+        .into()
+}
+
+/// Builds the CONFIG. SILO button: an orange rectangle with a glow and dark text.
+fn config_button() -> Element<'static, Message> {
+    container(text("CONFIG. SILO").size(sp(CONFIG_TEXT_SIZE)).color(BACK))
+        .height(Length::Fixed(sp(CONFIG_BUTTON_HEIGHT)))
+        .align_y(iced::alignment::Vertical::Center)
+        .padding(Padding {
+            left: sp(CONFIG_PAD_H),
+            right: sp(CONFIG_PAD_H),
+            top: 0.0,
+            bottom: 0.0,
+        })
+        .style(|_| container::Style {
+            background: Some(ORANGE.into()),
+            shadow: Shadow {
+                color: Color {
+                    a: GLOW_ALPHA,
+                    ..ORANGE
+                },
+                offset: Vector::ZERO,
+                blur_radius: sp(GLOW_BLUR),
+            },
+            ..container::Style::default()
+        })
+        .into()
+}
+
+/// Positions the CONFIG button on the far right, centered like the labels.
+///
+/// The button is vertically centered in the region between the top orange
+/// rule and the center line (the same band the status labels use), and is
+/// pinned to the right edge with a small padding.
+fn config_area() -> Element<'static, Message> {
+    let region_top = TOP_GAP + LINE_THICKNESS;
+    let region_bottom = band_center() - DETAIL_LINE_THICKNESS / 2.0;
+    let button_top = region_top + (region_bottom - region_top - CONFIG_BUTTON_HEIGHT) / 2.0;
+
+    container(config_button())
+        .width(Length::Fill)
+        .height(Length::Fill)
+        .align_x(iced::alignment::Horizontal::Right)
+        .padding(Padding {
+            top: sp(button_top),
+            right: sp(CONFIG_RIGHT_PADDING),
+            left: 0.0,
+            bottom: 0.0,
+        })
+        .into()
+}
+
 /// Builds the ActionArea overlay element.
 ///
 /// Returns a full-size, transparent layer holding two orange rules, the logo,
-/// and a thin teal detail line. The first rule sits `TOP_GAP` from the top of
-/// the window; the second sits `LINE_SPACING` below it. The logo is placed at
-/// the far left, centered between the two rules, and the detail line runs from
-/// just right of the logo to the right edge, also centered. Everything is
+/// a thin teal detail line, and the status labels. The first rule sits
+/// `TOP_GAP` from the top of the window; the second sits `LINE_SPACING` below
+/// it. The logo is placed at the far left, centered between the two rules, and
+/// the detail line runs from just right of the logo to the right edge, also
+/// centered. The status labels sit above the center line, and the CONFIG
+/// button is pinned to the far right on the same band. Everything is
 /// positioned via top/left padding so it stays above the base background and
 /// below the scanlines.
 pub fn view(logo_hovered: bool) -> Element<'static, Message> {
@@ -181,5 +302,7 @@ pub fn view(logo_hovered: bool) -> Element<'static, Message> {
         .push(rule_at(TOP_GAP + LINE_SPACING))
         .push(logo(logo_hovered))
         .push(detail_line())
+        .push(status_labels())
+        .push(config_area())
         .into()
 }

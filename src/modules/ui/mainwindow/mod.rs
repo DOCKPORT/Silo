@@ -11,6 +11,7 @@ use iced::widget::{Stack, container, text};
 use iced::window::Position;
 use iced::{Length, Size, Subscription, Task, application};
 
+use super::font;
 use super::scaling::Scaling;
 use super::scanlines;
 use super::theme::silo_theme;
@@ -92,6 +93,8 @@ pub fn run() -> iced::Result {
     };
 
     application(new, update, view)
+        .font(font::FONT_BYTES)
+        .default_font(font::FONT)
         .theme(silo_theme())
         .title("Silo")
         .window(window_settings)
