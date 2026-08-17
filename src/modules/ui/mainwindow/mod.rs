@@ -5,103 +5,87 @@
 //! returns a full-window [`Container`] that is ready to receive children
 //! as the UI grows.
 
-use std::convert::Infallible;
+mod action_area;
 
-use iced::widget::{container, text};
+use iced::widget::{Stack, container, text};
 use iced::window::Position;
-use iced::{Length, Size, Task, application};
+use iced::{Length, Size, Subscription, Task, application};
 
+use super::scaling::Scaling;
+use super::scanlines;
 use super::theme::silo_theme;
 
-/// The Silo application state. Empty for now; it will later hold the
-/// silo settings loaded from the config store.
+/// The Silo application state.
 #[derive(Debug, Default)]
-pub struct SiloApp;
+pub struct SiloApp {
+    /// Whether the pointer is currently over the logo.
+    logo_hovered: bool,
+}
+
+/// Messages that drive the Silo application.
+#[derive(Debug, Clone)]
+enum Message {
+    /// The window was resized to a new size.
+    WindowResized(Size),
+    /// The pointer entered or left the logo.
+    LogoHovered(bool),
+}
 
 /// Boots the Silo application.
 ///
 /// Returns the initial state and a no-op [`Task`].
-fn new() -> (SiloApp, Task<Infallible>) {
-    (SiloApp, Task::none())
+fn new() -> (SiloApp, Task<Message>) {
+    (SiloApp::default(), Task::none())
 }
 
 /// Handles application messages.
 ///
-/// No messages exist yet, so this is a no-op.
-fn update(_state: &mut SiloApp, _message: Infallible) -> Task<Infallible> {
-    Task::none()
+/// A window resize updates the live scale factor so `sp` values follow the
+/// current client area. The scaling module ignores no-op changes. A logo hover
+/// toggles which logo variant is shown.
+fn update(state: &mut SiloApp, message: Message) -> Task<Message> {
+    match message {
+        Message::WindowResized(size) => {
+            Scaling::global().set_window_size(size.width, size.height);
+            Task::none()
+        }
+        Message::LogoHovered(hovered) => {
+            state.logo_hovered = hovered;
+            Task::none()
+        }
+    }
 }
 
 /// Builds the application view.
 ///
-/// A full-window [`Container`] with no visible content. The theme's
-/// `background` palette color (`#161616`) paints the whole surface.
-fn view(_state: &SiloApp) -> iced::Element<'_, Infallible> {
-    container(text(""))
-        .width(Length::Fill)
-        .height(Length::Fill)
+/// The base is a full-window [`Container`] with no visible content. The theme's
+/// `background` palette color (`#161616`) paints the whole surface. The
+/// [`action_area`] overlay is stacked above it, and the [`scanlines`] overlay
+/// sits on top of everything for the retro CRT screen look.
+fn view(state: &SiloApp) -> iced::Element<'_, Message> {
+    let base = container(text("")).width(Length::Fill).height(Length::Fill);
+
+    Stack::new()
+        .push(base)
+        .push(action_area::view(state.logo_hovered))
+        .push(scanlines::overlay())
         .into()
 }
 
-/// Detects the primary monitor's work area or full resolution.
+/// The application's subscriptions.
 ///
-/// On Linux this queries `xprop -root _NET_WORKAREA` (the screen area minus
-/// taskbar), falling back to `xrandr` for the primary resolution. The returned
-/// size is used as the initial window size so the maximized window starts at
-/// the real screen size instead of a tiny default.
-fn detect_screen_size() -> Size {
-    #[cfg(target_os = "linux")]
-    {
-        // Prefer the work area (screen minus taskbar) so the initial window
-        // matches the maximized client area.
-        if let Ok(output) = std::process::Command::new("xprop")
-            .args(["-root", "_NET_WORKAREA"])
-            .output()
-        {
-            let stdout = String::from_utf8_lossy(&output.stdout);
-            if let Some(dim) = stdout.split('=').nth(1) {
-                let mut parts = dim.trim().split(',');
-                let _x = parts.next();
-                let _y = parts.next();
-                if let (Some(w), Some(h)) = (parts.next(), parts.next())
-                    && let (Ok(w), Ok(h)) = (w.trim().parse::<f32>(), h.trim().parse::<f32>())
-                {
-                    return Size::new(w, h);
-                }
-            }
-        }
-
-        // Fall back to the full resolution reported by xrandr.
-        if let Ok(output) = std::process::Command::new("xrandr").output() {
-            let stdout = String::from_utf8_lossy(&output.stdout);
-            for line in stdout.lines() {
-                if (line.contains(" primary") || line.contains('*'))
-                    && let Some(res) = line.split_whitespace().find(|s| {
-                        s.contains('x') && s.chars().all(|c| c.is_ascii_digit() || c == 'x')
-                    })
-                {
-                    let parts: Vec<&str> = res.split('x').collect();
-                    if parts.len() == 2
-                        && let (Ok(w), Ok(h)) = (parts[0].parse::<f32>(), parts[1].parse::<f32>())
-                    {
-                        return Size::new(w, h);
-                    }
-                }
-            }
-        }
-        Size::new(1024.0, 768.0)
-    }
-
-    #[cfg(not(target_os = "linux"))]
-    {
-        Size::new(1024.0, 768.0) // maximized mode handles sizing instead
-    }
+/// Listens for window resize events so the scale factor stays in sync with the
+/// live client area.
+fn subscription(_state: &SiloApp) -> Subscription<Message> {
+    iced::window::resize_events().map(|(_id, size)| Message::WindowResized(size))
 }
 
 /// Runs the Silo main window.
 pub fn run() -> iced::Result {
+    let screen_size = Scaling::global().screen_size;
+
     let window_settings = iced::window::Settings {
-        size: detect_screen_size(),
+        size: screen_size,
         position: Position::Centered,
         maximized: true,
         ..iced::window::Settings::default()
@@ -111,5 +95,6 @@ pub fn run() -> iced::Result {
         .theme(silo_theme())
         .title("Silo")
         .window(window_settings)
+        .subscription(subscription)
         .run()
 }

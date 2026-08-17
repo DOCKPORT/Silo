@@ -6,5 +6,8 @@
 mod modules;
 
 fn main() -> iced::Result {
+    // Resolve the scale factor before any other startup work so the UI
+    // renders correctly from the very first frame.
+    modules::ui::scaling::Scaling::init();
     modules::ui::mainwindow::run()
 }
