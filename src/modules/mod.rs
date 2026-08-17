@@ -12,7 +12,4 @@
 pub mod config;
 pub mod silo_analysis;
 pub mod sync_engine;
-// NOTE: UI module is disabled for now. The Iced skeleton it contains uses APIs
-// that are not present in the installed iced version. UI is out of scope for the
-// current sync-engine task and will be rebuilt against the real Iced API later.
-// pub mod ui;
+pub mod ui;

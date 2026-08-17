@@ -1,9 +1,11 @@
 # Ignore everything at the repository root
 /*
 
-# ...except the source_code tree
-!/source_code/
-!/source_code/**
+# ...except the Cargo project files (moved to root from source_code/)
+!/Cargo.toml
+!/Cargo.lock
+!/src/
+!/src/**
 
 # ...except the README and the logo banner
 !/README.md
@@ -14,10 +16,9 @@
 /logo/*.html
 
 # Rust build output
-/source_code/target/
-/source_code/modules/target/
+/target/
 
-# Editor / OS junk (anywhere under source_code)
+# Editor / OS junk
 **/*.swp
 **/.vscode/
 **/.idea/
