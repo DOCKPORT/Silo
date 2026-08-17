@@ -5,16 +5,20 @@
 //! It supports later reporting features such as:
 //! - total size of the silo
 //! - largest and smallest file
+//! - oldest and newest file
 //! - average file size
 //! - file types by extension and their share of the total silo size
 //!
-//! Design: the module is split into two internal pieces:
+//! Design: the module is split into internal pieces:
 //! - [`walk`]: recursive filesystem scan + stats computation
+//! - [`file_type_allocation`]: per-extension size breakdown of the silo
 //! - [`error`]: typed errors
 //!
 //! The path to analyze will later come from `silo_path_data` in the Silo
 //! SQLite database (under `~/.local`). That database does not exist yet, so
 //! this foundation takes the silo path directly as an argument.
+
+pub mod file_type_allocation;
 
 mod error;
 mod walk;
@@ -23,6 +27,7 @@ use std::path::Path;
 use std::path::PathBuf;
 
 pub use error::AnalysisError;
+pub use file_type_allocation::FileTypeStat;
 
 /// A single file found inside the silo.
 #[derive(Debug, Clone, serde::Serialize)]
@@ -46,7 +51,8 @@ pub struct DirEntry {
     pub relative_path: PathBuf,
 }
 
-/// A reference to a file used by the largest/smallest file statistics.
+/// A reference to a file used by the largest/smallest/oldest/newest file
+/// statistics.
 #[derive(Debug, Clone, PartialEq, serde::Serialize)]
 pub struct FileRef {
     /// The file name.
@@ -55,21 +61,8 @@ pub struct FileRef {
     pub relative_path: PathBuf,
     /// The size of the file in bytes.
     pub size_bytes: u64,
-}
-
-/// Statistics for one file type (grouped by file extension).
-#[derive(Debug, Clone, serde::Serialize)]
-pub struct FileTypeStat {
-    /// The extension without the dot, for example `pdf`. Files without an
-    /// extension are grouped under the reserved name `no-extension`.
-    pub extension: String,
-    /// How many files have this extension.
-    pub count: u64,
-    /// The total size in bytes of all files with this extension.
-    pub total_bytes: u64,
-    /// The share of the total silo size in bytes, as a percentage rounded
-    /// to 2 decimal places. For example `42.57` means 42.57%.
-    pub percent_of_total_bytes: f64,
+    /// The last-modified timestamp of the file, in Unix epoch seconds.
+    pub modified: Option<i64>,
 }
 
 /// Summary statistics for the analyzed silo.
@@ -88,6 +81,12 @@ pub struct Stats {
     /// The average file size in bytes (rounded down), or `None` if the silo
     /// has no files.
     pub average_file_size_bytes: Option<u64>,
+    /// The oldest file by last-modified time, or `None` if the silo has no
+    /// files with a readable timestamp.
+    pub oldest_file: Option<FileRef>,
+    /// The newest file by last-modified time, or `None` if the silo has no
+    /// files with a readable timestamp.
+    pub newest_file: Option<FileRef>,
     /// File types by extension, ordered by total bytes descending.
     pub file_types: Vec<FileTypeStat>,
 }

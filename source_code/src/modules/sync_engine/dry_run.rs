@@ -9,9 +9,9 @@
 
 use std::path::Path;
 
+use super::SyncPlan;
 use super::command;
 use super::error::SyncError;
-use super::SyncPlan;
 
 /// The result of a dry run.
 #[derive(Debug)]

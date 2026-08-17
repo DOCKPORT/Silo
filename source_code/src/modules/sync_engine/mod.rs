@@ -18,7 +18,7 @@ mod runner;
 
 use std::path::PathBuf;
 
-pub use dry_run::{dry_run, DryRunOutcome};
+pub use dry_run::{DryRunOutcome, dry_run};
 pub use error::SyncError;
 
 /// The inputs for a sync operation.
