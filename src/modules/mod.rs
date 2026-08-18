@@ -6,8 +6,8 @@
 //! - silo_analysis: filesystem analysis of the silo data folder
 //! - ui: Iced graphical interface, with the main window under ui::mainwindow
 //!
-//! The module is declared but not yet wired into main.rs, which is intentionally
-//! kept empty for now.
+//! main.rs calls `config::init()` at startup to create the settings database.
+//! The remaining subsystems are compiled but not yet wired into the UI.
 
 pub mod config;
 pub mod silo_analysis;

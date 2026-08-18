@@ -110,13 +110,11 @@ fn update(state: &mut SiloApp, message: Message) -> Task<Message> {
 fn view(state: &SiloApp) -> iced::Element<'_, Message> {
     let base = container(text("")).width(Length::Fill).height(Length::Fill);
 
-    let mut stack = Stack::new()
-        .push(base)
-        .push(action_area::view(
-            state.logo_hovered,
-            state.config_hovered,
-            state.sync_hovered,
-        ));
+    let mut stack = Stack::new().push(base).push(action_area::view(
+        state.logo_hovered,
+        state.config_hovered,
+        state.sync_hovered,
+    ));
 
     if state.about_open {
         stack = stack.push(about_dialog::view());

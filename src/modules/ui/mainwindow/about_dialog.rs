@@ -15,12 +15,13 @@ use super::Message;
 
 /// The embedded banner image, compiled into the binary at build time.
 /// Rendered as an SVG so it is available on the first frame.
-const BANNER_BYTES: &[u8] =
-    include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/logo/banner.svg"));
+const BANNER_BYTES: &[u8] = include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/logo/banner.svg"));
 
 /// The embedded GitHub logo, compiled into the binary at build time.
-const GITHUB_BYTES: &[u8] =
-    include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/logo/GitHub_Invertocat_White_Clearspace.svg"));
+const GITHUB_BYTES: &[u8] = include_bytes!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/logo/GitHub_Invertocat_White_Clearspace.svg"
+));
 
 /// The project URL opened when the GitHub logo is pressed.
 pub(super) const GITHUB_URL: &str = "https://github.com/DOCKPORT/Silo";
@@ -68,7 +69,13 @@ pub fn view() -> Element<'static, Message> {
             .width(Length::Fill)
             .height(Length::Fill)
             .style(|_| container::Style {
-                background: Some(Color { a: BACKDROP_ALPHA, ..BACK }.into()),
+                background: Some(
+                    Color {
+                        a: BACKDROP_ALPHA,
+                        ..BACK
+                    }
+                    .into(),
+                ),
                 ..container::Style::default()
             }),
     )
