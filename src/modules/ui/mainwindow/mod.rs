@@ -6,6 +6,7 @@
 //! as the UI grows.
 
 mod action_area;
+mod sync_progress_bar;
 
 use iced::widget::{Stack, container, text};
 use iced::window::Position;

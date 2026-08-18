@@ -206,7 +206,9 @@ fn status_label(content: &'static str) -> Element<'static, Message> {
 }
 
 /// Builds a small filled square used as a separator between labels.
-fn separator() -> Element<'static, Message> {
+///
+/// Shared with the other main-window overlays through `pub(super)`.
+pub(super) fn separator() -> Element<'static, Message> {
     container(text(""))
         .width(Length::Fixed(sp(SEPARATOR_SIZE)))
         .height(Length::Fixed(sp(SEPARATOR_SIZE)))
@@ -349,12 +351,18 @@ pub fn view(
     let lower_top = band_center() + DETAIL_LINE_THICKNESS / 2.0;
     let lower_bottom = TOP_GAP + LINE_SPACING;
 
+    // The progress bar: centered in the lower band, left-aligned with the
+    // status labels.
+    let bar_center_y = lower_top + (lower_bottom - lower_top) / 2.0;
+    let bar_left = LOGO_LEFT_GAP + LOGO_SIZE + DETAIL_GAP;
+
     Stack::new()
         .push(rule_at(TOP_GAP))
         .push(rule_at(TOP_GAP + LINE_SPACING))
         .push(logo(logo_hovered))
         .push(detail_line())
         .push(status_labels())
+        .push(super::sync_progress_bar::view(0.25, bar_center_y, bar_left))
         .push(button_area(
             silo_button(
                 "CONFIG. SILO",
