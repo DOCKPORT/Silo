@@ -7,7 +7,9 @@
 
 mod about_dialog;
 mod action_area;
+mod config_silo_dialog;
 mod sync_progress_bar;
+mod sync_silo_dialog;
 
 use iced::widget::{Stack, container, text};
 use iced::window::Position;
@@ -29,6 +31,10 @@ pub struct SiloApp {
     sync_hovered: bool,
     /// Whether the About dialog is currently open.
     about_open: bool,
+    /// Whether the Config Silo dialog is currently open.
+    config_dialog_open: bool,
+    /// Whether the Sync Silo dialog is currently open.
+    sync_dialog_open: bool,
 }
 
 /// Messages that drive the Silo application.
@@ -46,6 +52,14 @@ enum Message {
     LogoPressed,
     /// Closes the About dialog.
     CloseAboutDialog,
+    /// The CONFIG. SILO button was pressed; opens the Config dialog.
+    OpenConfigSiloDialog,
+    /// Closes the Config Silo dialog.
+    CloseConfigSiloDialog,
+    /// The SYNC SILO button was pressed; opens the Sync dialog.
+    OpenSyncSiloDialog,
+    /// Closes the Sync Silo dialog.
+    CloseSyncSiloDialog,
     /// The GitHub logo was pressed; opens the project page.
     OpenGithub,
     /// A no-op message used to absorb clicks.
@@ -90,6 +104,22 @@ fn update(state: &mut SiloApp, message: Message) -> Task<Message> {
             state.about_open = false;
             Task::none()
         }
+        Message::OpenConfigSiloDialog => {
+            state.config_dialog_open = true;
+            Task::none()
+        }
+        Message::CloseConfigSiloDialog => {
+            state.config_dialog_open = false;
+            Task::none()
+        }
+        Message::OpenSyncSiloDialog => {
+            state.sync_dialog_open = true;
+            Task::none()
+        }
+        Message::CloseSyncSiloDialog => {
+            state.sync_dialog_open = false;
+            Task::none()
+        }
         Message::OpenGithub => {
             // Open the project page in the default browser.
             let _ = std::process::Command::new("xdg-open")
@@ -118,6 +148,14 @@ fn view(state: &SiloApp) -> iced::Element<'_, Message> {
 
     if state.about_open {
         stack = stack.push(about_dialog::view());
+    }
+
+    if state.config_dialog_open {
+        stack = stack.push(config_silo_dialog::view());
+    }
+
+    if state.sync_dialog_open {
+        stack = stack.push(sync_silo_dialog::view());
     }
 
     // The scanlines stay on top of everything, including the dialog, for the

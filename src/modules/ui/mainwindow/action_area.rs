@@ -256,12 +256,13 @@ fn status_labels() -> Element<'static, Message> {
 ///
 /// An outlined rectangle with no fill, a `DETAIL` border and glow, and orange
 /// text. When `hovered` is true, the border and glow switch to `ORANGE` and the
-/// pointer cursor is shown. Hovering emits `on_enter`/`on_exit`, supplied by
-/// the caller so every button shares one implementation while staying wired to
-/// its own state.
+/// pointer cursor is shown. Pressing emits `on_press`; hovering emits
+/// `on_enter`/`on_exit`. The caller supplies the messages so every button
+/// shares one implementation while staying wired to its own state.
 fn silo_button(
     label: &'static str,
     hovered: bool,
+    on_press: Message,
     on_enter: Message,
     on_exit: Message,
 ) -> Element<'static, Message> {
@@ -298,6 +299,7 @@ fn silo_button(
         });
 
     MouseArea::new(button)
+        .on_press(on_press)
         .on_enter(on_enter)
         .on_exit(on_exit)
         .interaction(mouse::Interaction::Pointer)
@@ -368,6 +370,7 @@ pub fn view(
             silo_button(
                 "CONFIG. SILO",
                 config_hovered,
+                Message::OpenConfigSiloDialog,
                 Message::ConfigHovered(true),
                 Message::ConfigHovered(false),
             ),
@@ -378,6 +381,7 @@ pub fn view(
             silo_button(
                 "SYNC SILO",
                 sync_hovered,
+                Message::OpenSyncSiloDialog,
                 Message::SyncHovered(true),
                 Message::SyncHovered(false),
             ),
