@@ -22,9 +22,11 @@ The UI interface carries a theme inspired by the TV show *Silo*.
 |---|---|
 | Language | Rust |
 | GUI | Iced |
-| Config store | SQLite (via rusqlite) |
+| Config | SQLite |
 | Sync engine | rsync |
 | Platform | Linux |
+| Binary | AppImage |
+
 
 ## More about rsync:
 
@@ -34,3 +36,5 @@ Rsync uses a delta-transfer algorithm which provides a very fast method for brin
 
 
 https://github.com/RsyncProject/rsync
+
+
