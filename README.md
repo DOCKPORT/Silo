@@ -38,3 +38,14 @@ Rsync uses a delta-transfer algorithm which provides a very fast method for brin
 https://github.com/RsyncProject/rsync
 
 
+## Distribution
+
+Silo releases are available as an AppImage which means "one app = one file", which you can download and run on your Linux system while you don't need a package manager and nothing gets changed in your system.
+
+AppImages are single-file applications that run on most Linux distributions. Download an application, make it executable, and run! No need to install. No system libraries or system preferences are altered. 
+
+Unlike other applications, AppImages do not need to be installed before they can be used. However, they need to be marked as executable before they can be run. This is a Linux security feature.
+
+Visit the releases page to find the latest AppImage release here: https://github.com/DOCKPORT/Silo/releases
+
+More info on AppImage: https://appimage.org/
