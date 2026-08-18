@@ -103,4 +103,3 @@ pub fn view(progress: f32, center_y: f32, left: f32) -> Element<'static, Message
         })
         .into()
 }
-
