@@ -5,6 +5,7 @@
 //! returns a full-window [`Container`] that is ready to receive children
 //! as the UI grows.
 
+mod about_dialog;
 mod action_area;
 mod sync_progress_bar;
 
@@ -26,6 +27,8 @@ pub struct SiloApp {
     config_hovered: bool,
     /// Whether the pointer is currently over the SYNC button.
     sync_hovered: bool,
+    /// Whether the About dialog is currently open.
+    about_open: bool,
 }
 
 /// Messages that drive the Silo application.
@@ -39,6 +42,14 @@ enum Message {
     ConfigHovered(bool),
     /// The pointer entered or left the SYNC button.
     SyncHovered(bool),
+    /// The logo was pressed; opens the About dialog.
+    LogoPressed,
+    /// Closes the About dialog.
+    CloseAboutDialog,
+    /// The GitHub logo was pressed; opens the project page.
+    OpenGithub,
+    /// A no-op message used to absorb clicks.
+    NoOp,
 }
 
 /// Boots the Silo application.
@@ -71,6 +82,22 @@ fn update(state: &mut SiloApp, message: Message) -> Task<Message> {
             state.sync_hovered = hovered;
             Task::none()
         }
+        Message::LogoPressed => {
+            state.about_open = true;
+            Task::none()
+        }
+        Message::CloseAboutDialog => {
+            state.about_open = false;
+            Task::none()
+        }
+        Message::OpenGithub => {
+            // Open the project page in the default browser.
+            let _ = std::process::Command::new("xdg-open")
+                .arg(about_dialog::GITHUB_URL)
+                .spawn();
+            Task::none()
+        }
+        Message::NoOp => Task::none(),
     }
 }
 
@@ -83,15 +110,21 @@ fn update(state: &mut SiloApp, message: Message) -> Task<Message> {
 fn view(state: &SiloApp) -> iced::Element<'_, Message> {
     let base = container(text("")).width(Length::Fill).height(Length::Fill);
 
-    Stack::new()
+    let mut stack = Stack::new()
         .push(base)
         .push(action_area::view(
             state.logo_hovered,
             state.config_hovered,
             state.sync_hovered,
-        ))
-        .push(scanlines::overlay())
-        .into()
+        ));
+
+    if state.about_open {
+        stack = stack.push(about_dialog::view());
+    }
+
+    // The scanlines stay on top of everything, including the dialog, for the
+    // retro CRT screen look.
+    stack.push(scanlines::overlay()).into()
 }
 
 /// The application's subscriptions.

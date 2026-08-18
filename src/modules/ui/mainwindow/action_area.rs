@@ -151,6 +151,7 @@ fn logo(hovered: bool) -> Element<'static, Message> {
         .height(Length::Fixed(sp(LOGO_SIZE)));
 
     let area = MouseArea::new(artwork)
+        .on_press(Message::LogoPressed)
         .on_enter(Message::LogoHovered(true))
         .on_exit(Message::LogoHovered(false))
         .interaction(mouse::Interaction::Pointer);

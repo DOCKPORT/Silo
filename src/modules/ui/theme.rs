@@ -29,6 +29,9 @@ pub const ORANGE: Color = rgb8(0xFF, 0xBF, 0x00);
 /// DETAIL teal-blue: #3e768b.
 pub const DETAIL: Color = rgb8(0x3e, 0x76, 0x8b);
 
+/// GREY secondary text: #b8b8b8.
+pub const GREY: Color = rgb8(0xb8, 0xb8, 0xb8);
+
 /// The Silo color palette mapped onto the Iced [`Palette`] slots.
 pub fn silo_palette() -> Palette {
     Palette {
