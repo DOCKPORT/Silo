@@ -21,6 +21,10 @@ use super::theme::silo_theme;
 pub struct SiloApp {
     /// Whether the pointer is currently over the logo.
     logo_hovered: bool,
+    /// Whether the pointer is currently over the CONFIG button.
+    config_hovered: bool,
+    /// Whether the pointer is currently over the SYNC button.
+    sync_hovered: bool,
 }
 
 /// Messages that drive the Silo application.
@@ -30,6 +34,10 @@ enum Message {
     WindowResized(Size),
     /// The pointer entered or left the logo.
     LogoHovered(bool),
+    /// The pointer entered or left the CONFIG button.
+    ConfigHovered(bool),
+    /// The pointer entered or left the SYNC button.
+    SyncHovered(bool),
 }
 
 /// Boots the Silo application.
@@ -54,6 +62,14 @@ fn update(state: &mut SiloApp, message: Message) -> Task<Message> {
             state.logo_hovered = hovered;
             Task::none()
         }
+        Message::ConfigHovered(hovered) => {
+            state.config_hovered = hovered;
+            Task::none()
+        }
+        Message::SyncHovered(hovered) => {
+            state.sync_hovered = hovered;
+            Task::none()
+        }
     }
 }
 
@@ -68,7 +84,11 @@ fn view(state: &SiloApp) -> iced::Element<'_, Message> {
 
     Stack::new()
         .push(base)
-        .push(action_area::view(state.logo_hovered))
+        .push(action_area::view(
+            state.logo_hovered,
+            state.config_hovered,
+            state.sync_hovered,
+        ))
         .push(scanlines::overlay())
         .into()
 }
