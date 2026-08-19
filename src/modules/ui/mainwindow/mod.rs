@@ -8,6 +8,7 @@
 mod about_dialog;
 mod action_area;
 mod config_silo_dialog;
+mod config_silo_dialog_elements;
 mod sync_progress_bar;
 mod sync_silo_dialog;
 
@@ -29,6 +30,8 @@ pub struct SiloApp {
     config_hovered: bool,
     /// Whether the pointer is currently over the SYNC button.
     sync_hovered: bool,
+    /// Whether the pointer is currently over the + button in the folder box.
+    plus_hovered: bool,
     /// Whether the About dialog is currently open.
     about_open: bool,
     /// Whether the Config Silo dialog is currently open.
@@ -48,6 +51,8 @@ enum Message {
     ConfigHovered(bool),
     /// The pointer entered or left the SYNC button.
     SyncHovered(bool),
+    /// The pointer entered or left the + button in the folder box.
+    PlusHovered(bool),
     /// The logo was pressed; opens the About dialog.
     LogoPressed,
     /// Closes the About dialog.
@@ -96,6 +101,10 @@ fn update(state: &mut SiloApp, message: Message) -> Task<Message> {
             state.sync_hovered = hovered;
             Task::none()
         }
+        Message::PlusHovered(hovered) => {
+            state.plus_hovered = hovered;
+            Task::none()
+        }
         Message::LogoPressed => {
             state.about_open = true;
             Task::none()
@@ -110,6 +119,7 @@ fn update(state: &mut SiloApp, message: Message) -> Task<Message> {
         }
         Message::CloseConfigSiloDialog => {
             state.config_dialog_open = false;
+            state.plus_hovered = false;
             Task::none()
         }
         Message::OpenSyncSiloDialog => {
@@ -151,7 +161,7 @@ fn view(state: &SiloApp) -> iced::Element<'_, Message> {
     }
 
     if state.config_dialog_open {
-        stack = stack.push(config_silo_dialog::view());
+        stack = stack.push(config_silo_dialog::view(state.plus_hovered));
     }
 
     if state.sync_dialog_open {

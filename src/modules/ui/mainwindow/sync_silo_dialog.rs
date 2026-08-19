@@ -32,7 +32,16 @@ const BOTTOM_PAD: f32 = 40.0;
 const BORDER_WIDTH: f32 = 2.0;
 
 /// The alpha of the dimmed backdrop behind the dialog box.
-const BACKDROP_ALPHA: f32 = 0.85;
+const BACKDROP_ALPHA: f32 = 0.90;
+
+/// The font size of the title label above the box, in reference pixels.
+const TITLE_SIZE: f32 = 30.0;
+
+/// The gap between the title label and the top of the dialog box, in ref px.
+const TITLE_GAP: f32 = 7.0;
+
+/// The horizontal padding of the title label, in reference pixels.
+const TITLE_PAD_H: f32 = 40.0;
 
 /// The font size of the CLOSE button text, in reference pixels.
 const TEXT_SIZE: f32 = 22.0;
@@ -46,9 +55,10 @@ const CLOSE_PAD_H: f32 = 28.0;
 /// Builds the Sync Silo dialog overlay.
 ///
 /// Returns a full-window overlay: a dimmed backdrop that closes the dialog on
-/// press, and a dialog box holding the CLOSE button. The box keeps the top
-/// position of a `TOP_ANCHOR_HEIGHT`-tall centered box, so the extra height
-/// extends only downward. The settings content is added in a later step.
+/// press, and a dialog box holding the CLOSE button. A "Sync Silo" title
+/// label sits just above the box. The box keeps the top position of a
+/// `TOP_ANCHOR_HEIGHT`-tall centered box, so the extra height extends only
+/// downward. The settings content is added in a later step.
 pub fn view() -> Element<'static, Message> {
     // The dimmed backdrop. Pressing it closes the dialog.
     let backdrop = MouseArea::new(
@@ -108,6 +118,39 @@ pub fn view() -> Element<'static, Message> {
     let window_height = Scaling::global().screen_size.height;
     let top = (window_height - sp(TOP_ANCHOR_HEIGHT)) / 2.0;
 
+    // The title label, centered just above the box. Its top edge sits
+    // `TITLE_SIZE + TITLE_GAP` above the box's top edge, so the label text
+    // lands with a `TITLE_GAP` gap between its bottom and the box. The label
+    // is a small box of its own, filled and bordered like the dialog box.
+    let title_top = top - sp(TITLE_SIZE + TITLE_GAP);
+    let title_label = container(text("SYNC SILO").size(sp(TITLE_SIZE)).color(TEAL))
+        .padding(Padding {
+            left: sp(TITLE_PAD_H),
+            right: sp(TITLE_PAD_H),
+            top: 0.0,
+            bottom: 0.0,
+        })
+        .style(|_| container::Style {
+            background: Some(BACK.into()),
+            border: Border {
+                color: DETAIL,
+                width: sp(BORDER_WIDTH),
+                radius: 0.0.into(),
+            },
+            ..container::Style::default()
+        });
+
+    let title = container(title_label)
+        .width(Length::Fill)
+        .height(Length::Fill)
+        .align_x(iced::alignment::Horizontal::Center)
+        .padding(Padding {
+            top: title_top,
+            left: 0.0,
+            right: 0.0,
+            bottom: 0.0,
+        });
+
     Stack::new()
         .push(backdrop)
         .push(
@@ -122,6 +165,7 @@ pub fn view() -> Element<'static, Message> {
                     bottom: 0.0,
                 }),
         )
+        .push(title)
         .into()
 }
 

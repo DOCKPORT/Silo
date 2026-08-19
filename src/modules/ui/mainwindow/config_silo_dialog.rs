@@ -2,9 +2,9 @@
 //!
 //! Shown when the CONFIG. SILO button in the action area is pressed. A
 //! centered dialog box sits on a dimmed full-window backdrop. Pressing the
-//! backdrop or the CLOSE button closes the dialog. The dialog content is
-//! intentionally empty for now; it will host the silo settings (source
-//! folders, excludes, destination) in a later step.
+//! backdrop or the CLOSE button closes the dialog. The dialog box holds the
+//! folder and exclude panel boxes; the silo settings fields are added in a
+//! later step.
 
 use iced::mouse;
 use iced::widget::{Column, MouseArea, Stack, container, text};
@@ -28,11 +28,26 @@ const TOP_ANCHOR_HEIGHT: f32 = 600.0;
 /// The gap between the bottom of the box and the CLOSE button, in ref px.
 const BOTTOM_PAD: f32 = 40.0;
 
+/// The gap between the panel boxes and the CLOSE button, in reference pixels.
+const CONTENT_SPACING: f32 = 20.0;
+
+/// The padding between the dialog box border and its content, in ref px.
+const CONTENT_PAD: f32 = 30.0;
+
 /// The width of the dialog border, in reference pixels.
 const BORDER_WIDTH: f32 = 2.0;
 
 /// The alpha of the dimmed backdrop behind the dialog box.
-const BACKDROP_ALPHA: f32 = 0.85;
+const BACKDROP_ALPHA: f32 = 0.90;
+
+/// The font size of the title label above the box, in reference pixels.
+const TITLE_SIZE: f32 = 30.0;
+
+/// The gap between the title label and the top of the dialog box, in ref px.
+const TITLE_GAP: f32 = 7.0;
+
+/// The horizontal padding of the title label, in reference pixels.
+const TITLE_PAD_H: f32 = 40.0;
 
 /// The font size of the CLOSE button text, in reference pixels.
 const TEXT_SIZE: f32 = 22.0;
@@ -45,11 +60,16 @@ const CLOSE_PAD_H: f32 = 28.0;
 
 /// Builds the Config Silo dialog overlay.
 ///
+/// `plus_hovered` reports whether the pointer is over the + button so it can
+/// show its hover color.
+///
 /// Returns a full-window overlay: a dimmed backdrop that closes the dialog on
-/// press, and a dialog box holding the CLOSE button. The box keeps the top
-/// position of a `TOP_ANCHOR_HEIGHT`-tall centered box, so the extra height
-/// extends only downward. The settings content is added in a later step.
-pub fn view() -> Element<'static, Message> {
+/// press, and a dialog box holding the folder and exclude panel boxes plus
+/// the CLOSE button. A "Configure Silo" title label sits just above the box.
+/// The box keeps the top position of a `TOP_ANCHOR_HEIGHT`-tall centered box,
+/// so the extra height extends only downward. The settings fields are added
+/// in a later step.
+pub fn view(plus_hovered: bool) -> Element<'static, Message> {
     // The dimmed backdrop. Pressing it closes the dialog.
     let backdrop = MouseArea::new(
         container(text(""))
@@ -68,9 +88,14 @@ pub fn view() -> Element<'static, Message> {
     )
     .on_press(Message::CloseConfigSiloDialog);
 
-    // The dialog content: the CLOSE button, bottom-center in the box.
+    // The dialog content: the panel boxes on top and the CLOSE button at the
+    // bottom of the box.
     let content = Column::new()
+        .width(Length::Fill)
+        .height(Length::Fill)
         .align_x(iced::alignment::Horizontal::Center)
+        .spacing(sp(CONTENT_SPACING))
+        .push(super::config_silo_dialog_elements::view(plus_hovered))
         .push(close_button());
 
     let dialog_box = container(content)
@@ -79,9 +104,9 @@ pub fn view() -> Element<'static, Message> {
         .align_x(iced::alignment::Horizontal::Center)
         .align_y(iced::alignment::Vertical::Bottom)
         .padding(Padding {
-            top: 0.0,
-            left: 0.0,
-            right: 0.0,
+            top: sp(CONTENT_PAD),
+            left: sp(CONTENT_PAD),
+            right: sp(CONTENT_PAD),
             bottom: sp(BOTTOM_PAD),
         })
         .style(|_| container::Style {
@@ -108,6 +133,39 @@ pub fn view() -> Element<'static, Message> {
     let window_height = Scaling::global().screen_size.height;
     let top = (window_height - sp(TOP_ANCHOR_HEIGHT)) / 2.0;
 
+    // The title label, centered just above the box. Its top edge sits
+    // `TITLE_SIZE + TITLE_GAP` above the box's top edge, so the label text
+    // lands with a `TITLE_GAP` gap between its bottom and the box. The label
+    // is a small box of its own, filled and bordered like the dialog box.
+    let title_top = top - sp(TITLE_SIZE + TITLE_GAP);
+    let title_label = container(text("CONFIGURE SILO").size(sp(TITLE_SIZE)).color(TEAL))
+        .padding(Padding {
+            left: sp(TITLE_PAD_H),
+            right: sp(TITLE_PAD_H),
+            top: 0.0,
+            bottom: 0.0,
+        })
+        .style(|_| container::Style {
+            background: Some(BACK.into()),
+            border: Border {
+                color: DETAIL,
+                width: sp(BORDER_WIDTH),
+                radius: 0.0.into(),
+            },
+            ..container::Style::default()
+        });
+
+    let title = container(title_label)
+        .width(Length::Fill)
+        .height(Length::Fill)
+        .align_x(iced::alignment::Horizontal::Center)
+        .padding(Padding {
+            top: title_top,
+            left: 0.0,
+            right: 0.0,
+            bottom: 0.0,
+        });
+
     Stack::new()
         .push(backdrop)
         .push(
@@ -122,6 +180,7 @@ pub fn view() -> Element<'static, Message> {
                     bottom: 0.0,
                 }),
         )
+        .push(title)
         .into()
 }
 

@@ -55,7 +55,7 @@ const CLOSE_PAD_H: f32 = 28.0;
 const BORDER_WIDTH: f32 = 2.0;
 
 /// The alpha of the dimmed backdrop behind the dialog box.
-const BACKDROP_ALPHA: f32 = 0.85;
+const BACKDROP_ALPHA: f32 = 0.90;
 
 /// Builds the About dialog overlay.
 ///
