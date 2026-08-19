@@ -3,7 +3,8 @@
 //! This module draws thin, evenly spaced horizontal lines across the entire
 //! surface to give the window a retro screen look. The lines are near-black at
 //! low alpha, so they stay subtle over the dark background but show clearly
-//! over brighter content, just like real CRT scanlines. The overlay is
+//! over brighter content, just like real CRT scanlines. The whole overlay also
+//! carries a faint phosphor-green tint for a sci-fi look. The overlay is
 //! non-interactive, so it never intercepts input from widgets beneath it.
 
 use iced::mouse;
@@ -11,6 +12,17 @@ use iced::widget::canvas::{self, Program};
 use iced::{Color, Element, Length, Point, Rectangle, Renderer, Size, Theme};
 
 use crate::modules::ui::scaling::sp;
+
+/// Builds a [`Color`] from 8-bit RGB channels.
+const fn rgb8(r: u8, g: u8, b: u8) -> Color {
+    Color::from_rgb(r as f32 / 255.0, g as f32 / 255.0, b as f32 / 255.0)
+}
+
+/// The phosphor-green tint of the whole overlay: #35e258.
+const TINT_GREEN: Color = rgb8(0x35, 0xe2, 0x58);
+
+/// The opacity of the green tint, kept low for a subtle effect.
+const TINT_ALPHA: f32 = 0.04;
 
 /// The vertical distance between scanlines, in pixels.
 const SCANLINE_SPACING: f32 = 3.0;
@@ -47,6 +59,23 @@ impl<Message> Program<Message> for Scanlines {
 
         let spacing = sp(SCANLINE_SPACING);
         let thickness = sp(SCANLINE_THICKNESS);
+
+        // Paint the subtle green tint over the whole surface first, so the
+        // dark scanlines stay crisp on top of it.
+        let tint = canvas::Fill {
+            style: canvas::Style::Solid(Color {
+                r: TINT_GREEN.r,
+                g: TINT_GREEN.g,
+                b: TINT_GREEN.b,
+                a: TINT_ALPHA,
+            }),
+            ..canvas::Fill::default()
+        };
+        frame.fill_rectangle(
+            Point::new(0.0, 0.0),
+            Size::new(bounds.width, bounds.height),
+            tint,
+        );
 
         let fill = canvas::Fill {
             style: canvas::Style::Solid(Color {
