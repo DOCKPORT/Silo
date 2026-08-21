@@ -9,12 +9,17 @@ mod about_dialog;
 mod action_area;
 mod config_silo_dialog;
 mod config_silo_dialog_elements;
+mod config_silo_dialog_folders;
 mod sync_progress_bar;
 mod sync_silo_dialog;
+
+use std::path::PathBuf;
 
 use iced::widget::{Stack, container, text};
 use iced::window::Position;
 use iced::{Length, Size, Subscription, Task, application};
+
+use crate::modules::config;
 
 use super::font;
 use super::scaling::Scaling;
@@ -38,6 +43,10 @@ pub struct SiloApp {
     config_dialog_open: bool,
     /// Whether the Sync Silo dialog is currently open.
     sync_dialog_open: bool,
+    /// The selected source folders, loaded once when the Config dialog opens.
+    folder_paths: Vec<PathBuf>,
+    /// The index of the folder chip the pointer is currently over, if any.
+    hovered_chip: Option<usize>,
 }
 
 /// Messages that drive the Silo application.
@@ -53,6 +62,17 @@ enum Message {
     SyncHovered(bool),
     /// The pointer entered or left the + button in the folder box.
     PlusHovered(bool),
+    /// The + button in the folder box was pressed; opens the OS native folder
+    /// picker.
+    PlusPressed,
+    /// The folder picker returned a chosen folder, or `None` if the user
+    /// cancelled. A chosen folder is appended to `silo_data_paths` in the
+    /// settings database.
+    FolderPicked(Option<PathBuf>),
+    /// The pointer entered or left a folder chip; carries the chip index.
+    ChipHovered(usize, bool),
+    /// A folder chip was pressed; opens the folder in the OS file explorer.
+    ChipPressed(PathBuf),
     /// The logo was pressed; opens the About dialog.
     LogoPressed,
     /// Closes the About dialog.
@@ -105,6 +125,52 @@ fn update(state: &mut SiloApp, message: Message) -> Task<Message> {
             state.plus_hovered = hovered;
             Task::none()
         }
+        Message::PlusPressed => {
+            // Open the OS native folder picker. The picked folder arrives as
+            // `FolderPicked`; the folder list is added in a later step.
+            Task::perform(
+                rfd::AsyncFileDialog::new()
+                    .set_title("Select a source folder")
+                    .pick_folder(),
+                |file| Message::FolderPicked(file.map(|handle| handle.path().to_path_buf())),
+            )
+        }
+        Message::FolderPicked(selection) => {
+            if let Some(path) = selection {
+                // Append the picked folder to the settings database: one row
+                // per folder, never replacing existing rows. Duplicate paths
+                // are ignored by the unique index on the `path` column.
+                match config::add_data_path(&path) {
+                    Ok(()) => {
+                        // Keep the in-memory list in sync with the database
+                        // while the dialog stays open. Duplicates are skipped,
+                        // mirroring the database rule.
+                        if !state.folder_paths.contains(&path) {
+                            state.folder_paths.push(path);
+                        }
+                    }
+                    Err(err) => {
+                        eprintln!("silo: could not save the selected folder {path:?}: {err}");
+                    }
+                }
+            }
+            Task::none()
+        }
+        Message::ChipHovered(index, hovered) => {
+            if hovered {
+                state.hovered_chip = Some(index);
+            } else if state.hovered_chip == Some(index) {
+                state.hovered_chip = None;
+            }
+            Task::none()
+        }
+        Message::ChipPressed(path) => {
+            // Open the folder in the native OS file explorer.
+            if let Err(err) = std::process::Command::new("xdg-open").arg(&path).spawn() {
+                eprintln!("silo: could not open the folder {path:?}: {err}");
+            }
+            Task::none()
+        }
         Message::LogoPressed => {
             state.about_open = true;
             Task::none()
@@ -115,11 +181,21 @@ fn update(state: &mut SiloApp, message: Message) -> Task<Message> {
         }
         Message::OpenConfigSiloDialog => {
             state.config_dialog_open = true;
+            // Load the saved source folders once at open. Reloading on every
+            // redraw would read the database on each frame.
+            state.folder_paths = match config::load() {
+                Ok(settings) => settings.silo_data_paths,
+                Err(err) => {
+                    eprintln!("silo: could not load the saved folders: {err}");
+                    Vec::new()
+                }
+            };
             Task::none()
         }
         Message::CloseConfigSiloDialog => {
             state.config_dialog_open = false;
             state.plus_hovered = false;
+            state.hovered_chip = None;
             Task::none()
         }
         Message::OpenSyncSiloDialog => {
@@ -161,7 +237,11 @@ fn view(state: &SiloApp) -> iced::Element<'_, Message> {
     }
 
     if state.config_dialog_open {
-        stack = stack.push(config_silo_dialog::view(state.plus_hovered));
+        stack = stack.push(config_silo_dialog::view(
+            state.plus_hovered,
+            &state.folder_paths,
+            state.hovered_chip,
+        ));
     }
 
     if state.sync_dialog_open {

@@ -140,6 +140,9 @@ fn create_schema(conn: &Connection) -> Result<(), ConfigError> {
             path TEXT NOT NULL
         );
 
+        CREATE UNIQUE INDEX IF NOT EXISTS uq_silo_data_paths_path
+            ON silo_data_paths (path);
+
         CREATE TABLE IF NOT EXISTS exclude (
             id INTEGER PRIMARY KEY,
             pattern TEXT NOT NULL
@@ -273,4 +276,104 @@ fn save_to(db: &Path, settings: &SiloSettings) -> Result<(), ConfigError> {
 
     tx.commit()?;
     Ok(())
+}
+
+/// Append one selected source folder to the settings database.
+///
+/// The folder is stored as its own row in `silo_data_paths`. Existing rows
+/// are kept; nothing is replaced. A path that already has a row is ignored,
+/// so the same folder cannot be stored twice.
+///
+/// The store must be initialized with [`init`] first.
+pub fn add_data_path(path: &Path) -> Result<(), ConfigError> {
+    add_data_path_to(&default_db_path()?, path)
+}
+
+/// The same as [`add_data_path`], but writes to `db`.
+fn add_data_path_to(db: &Path, path: &Path) -> Result<(), ConfigError> {
+    let conn = Connection::open(db)?;
+    conn.execute(
+        "INSERT INTO silo_data_paths (path) VALUES (?1)
+         ON CONFLICT (path) DO NOTHING",
+        [path.to_string_lossy().into_owned()],
+    )?;
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+
+    /// Create a fresh, unique temporary directory for one test.
+    fn temp_dir(tag: &str) -> PathBuf {
+        let dir = std::env::temp_dir().join(format!(
+            "silo_test_{}_{}_{tag}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos(),
+        ));
+        fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    fn cleanup(dir: &Path) {
+        let _ = fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn add_data_path_appends_rows() {
+        let dir = temp_dir("append");
+        let db = init_at(&dir).unwrap();
+        add_data_path_to(&db, Path::new("/one")).unwrap();
+        add_data_path_to(&db, Path::new("/two")).unwrap();
+
+        let settings = load_from(&db).unwrap();
+        assert_eq!(
+            settings.silo_data_paths,
+            vec![PathBuf::from("/one"), PathBuf::from("/two")]
+        );
+        cleanup(&dir);
+    }
+
+    #[test]
+    fn add_data_path_ignores_duplicates() {
+        let dir = temp_dir("dedupe");
+        let db = init_at(&dir).unwrap();
+        add_data_path_to(&db, Path::new("/one")).unwrap();
+        add_data_path_to(&db, Path::new("/one")).unwrap();
+
+        let settings = load_from(&db).unwrap();
+        assert_eq!(settings.silo_data_paths, vec![PathBuf::from("/one")]);
+        cleanup(&dir);
+    }
+
+    #[test]
+    fn add_data_path_keeps_rows_saved_by_save_to() {
+        let dir = temp_dir("keepsaved");
+        let db = init_at(&dir).unwrap();
+
+        save_to(
+            &db,
+            &SiloSettings {
+                silo_data_paths: vec![PathBuf::from("/a"), PathBuf::from("/b")],
+                ..SiloSettings::default()
+            },
+        )
+        .unwrap();
+        add_data_path_to(&db, Path::new("/c")).unwrap();
+
+        let settings = load_from(&db).unwrap();
+        assert_eq!(
+            settings.silo_data_paths,
+            vec![
+                PathBuf::from("/a"),
+                PathBuf::from("/b"),
+                PathBuf::from("/c")
+            ]
+        );
+        cleanup(&dir);
+    }
 }

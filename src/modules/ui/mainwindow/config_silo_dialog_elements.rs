@@ -3,8 +3,10 @@
 //! Two vertical rectangles laid side by side: the folder box (70% width) and
 //! the exclude box (30% width), each with a `#b8b8b8` border and a title at
 //! the top left. The folder box has a + button at the far right of its title
-//! row. The boxes will later host the selected source folders and the exclude
-//! patterns.
+//! row and hosts the selected source folders via [`config_silo_dialog_folders`].
+//! The exclude box will later host the exclude patterns.
+
+use std::path::PathBuf;
 
 use iced::mouse;
 use iced::widget::{Column, MouseArea, Row, Space, container, text};
@@ -47,20 +49,31 @@ const PLUS_TEXT_SIZE: f32 = 22.0;
 /// Builds the two panel boxes side by side.
 ///
 /// Returns a full-size row: the folder box takes 70% of the width and the
-/// exclude box the remaining 30%, separated by a small gap.
-pub fn view(plus_hovered: bool) -> Element<'static, Message> {
+/// exclude box the remaining 30%, separated by a small gap. `folder_paths`
+/// are the selected source folders shown in the folder box. `hovered_chip`
+/// is the index of the folder chip under the pointer, if any.
+pub fn view(
+    plus_hovered: bool,
+    folder_paths: &[PathBuf],
+    hovered_chip: Option<usize>,
+) -> Element<'static, Message> {
     Row::new()
         .width(Length::Fill)
         .height(Length::Fill)
         .spacing(sp(BOX_SPACING))
-        .push(folder_box(plus_hovered))
+        .push(folder_box(plus_hovered, folder_paths, hovered_chip))
         .push(exclude_box())
         .into()
 }
 
 /// Builds the folder box: a bordered rectangle filling 70% of the width, with
-/// a + button at the far right of the title row.
-fn folder_box(plus_hovered: bool) -> Element<'static, Message> {
+/// a + button at the far right of the title row and the folder list from
+/// [`config_silo_dialog_folders`] below the divider line.
+fn folder_box(
+    plus_hovered: bool,
+    folder_paths: &[PathBuf],
+    hovered_chip: Option<usize>,
+) -> Element<'static, Message> {
     let header = Row::new()
         .width(Length::Fill)
         .height(Length::Fixed(sp(HEADER_HEIGHT)))
@@ -70,7 +83,11 @@ fn folder_box(plus_hovered: bool) -> Element<'static, Message> {
         .push(plus_button(plus_hovered))
         .into();
 
-    boxed(Length::FillPortion(FOLDER_PART), header)
+    boxed(
+        Length::FillPortion(FOLDER_PART),
+        header,
+        super::config_silo_dialog_folders::view(folder_paths, hovered_chip),
+    )
 }
 
 /// Builds the exclude box: a bordered rectangle filling 30% of the width.
@@ -82,18 +99,34 @@ fn exclude_box() -> Element<'static, Message> {
         .push(text("EXCLUDE DATA").size(sp(TITLE_SIZE)).color(GREY))
         .into();
 
-    boxed(Length::FillPortion(EXCLUDE_PART), header)
+    boxed(Length::FillPortion(EXCLUDE_PART), header, empty_filler())
 }
 
-/// Builds one bordered rectangle box with the given width and header, filling
-/// the height. The header sits at the top left of the box, with a divider
-/// line below it that matches the box border style.
-fn boxed(width: Length, header: Element<'static, Message>) -> Element<'static, Message> {
+/// Builds an empty, full-size filler for a box that has no content yet. It
+/// keeps the box layout and the divider alignment stable.
+fn empty_filler() -> Element<'static, Message> {
+    container(text(""))
+        .width(Length::Fill)
+        .height(Length::Fill)
+        .into()
+}
+
+/// Builds one bordered rectangle box with the given width, header, and body,
+/// filling the height. The header sits at the top left of the box, with a
+/// divider line below it that matches the box border style. The body fills
+/// the area below the divider.
+fn boxed(
+    width: Length,
+    header: Element<'static, Message>,
+    body: Element<'static, Message>,
+) -> Element<'static, Message> {
     let content = Column::new()
         .width(Length::Fill)
+        .height(Length::Fill)
         .spacing(sp(TITLE_SPACING))
         .push(header)
-        .push(divider());
+        .push(divider())
+        .push(body);
 
     container(content)
         .width(width)
@@ -131,8 +164,8 @@ fn divider() -> Element<'static, Message> {
 
 /// Builds the + button: a plain + text, larger than the title but keeping the
 /// header band height unchanged. The fixed height with vertical centering
-/// keeps the + centered in the band. The + turns white when hovered. Style
-/// only, no action.
+/// keeps the + centered in the band. The + turns white when hovered. Pressing
+/// it opens the OS native folder picker.
 fn plus_button(hovered: bool) -> Element<'static, Message> {
     let plus = text("+")
         .size(sp(PLUS_TEXT_SIZE))
@@ -143,6 +176,7 @@ fn plus_button(hovered: bool) -> Element<'static, Message> {
     MouseArea::new(plus)
         .on_enter(Message::PlusHovered(true))
         .on_exit(Message::PlusHovered(false))
+        .on_press(Message::PlusPressed)
         .interaction(mouse::Interaction::Pointer)
         .into()
 }

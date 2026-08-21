@@ -6,4 +6,4 @@
 
 pub mod config_silo;
 
-pub use config_silo::{ConfigError, SiloSettings, init, load, save};
+pub use config_silo::{ConfigError, SiloSettings, add_data_path, init, load, save};

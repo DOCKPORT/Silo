@@ -6,6 +6,8 @@
 //! folder and exclude panel boxes; the silo settings fields are added in a
 //! later step.
 
+use std::path::PathBuf;
+
 use iced::mouse;
 use iced::widget::{Column, MouseArea, Stack, container, text};
 use iced::{Border, Color, Element, Length, Padding, Shadow, Vector};
@@ -61,7 +63,9 @@ const CLOSE_PAD_H: f32 = 28.0;
 /// Builds the Config Silo dialog overlay.
 ///
 /// `plus_hovered` reports whether the pointer is over the + button so it can
-/// show its hover color.
+/// show its hover color. `folder_paths` holds the selected source folders
+/// loaded at dialog open; it is passed down to the folder box for display.
+/// `hovered_chip` is the index of the folder chip under the pointer, if any.
 ///
 /// Returns a full-window overlay: a dimmed backdrop that closes the dialog on
 /// press, and a dialog box holding the folder and exclude panel boxes plus
@@ -69,7 +73,11 @@ const CLOSE_PAD_H: f32 = 28.0;
 /// The box keeps the top position of a `TOP_ANCHOR_HEIGHT`-tall centered box,
 /// so the extra height extends only downward. The settings fields are added
 /// in a later step.
-pub fn view(plus_hovered: bool) -> Element<'static, Message> {
+pub fn view(
+    plus_hovered: bool,
+    folder_paths: &[PathBuf],
+    hovered_chip: Option<usize>,
+) -> Element<'static, Message> {
     // The dimmed backdrop. Pressing it closes the dialog.
     let backdrop = MouseArea::new(
         container(text(""))
@@ -95,7 +103,11 @@ pub fn view(plus_hovered: bool) -> Element<'static, Message> {
         .height(Length::Fill)
         .align_x(iced::alignment::Horizontal::Center)
         .spacing(sp(CONTENT_SPACING))
-        .push(super::config_silo_dialog_elements::view(plus_hovered))
+        .push(super::config_silo_dialog_elements::view(
+            plus_hovered,
+            folder_paths,
+            hovered_chip,
+        ))
         .push(close_button());
 
     let dialog_box = container(content)
