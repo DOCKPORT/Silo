@@ -45,8 +45,15 @@ pub struct SiloApp {
     sync_dialog_open: bool,
     /// The selected source folders, loaded once when the Config dialog opens.
     folder_paths: Vec<PathBuf>,
+    /// The size label of each folder, parallel to `folder_paths`. Filled in
+    /// asynchronously when the Config dialog opens.
+    folder_sizes: Vec<String>,
     /// The index of the folder chip the pointer is currently over, if any.
     hovered_chip: Option<usize>,
+    /// The index of the folder chip whose remove menu is open, if any.
+    chip_menu: Option<usize>,
+    /// Whether the pointer is over the open remove menu row.
+    menu_hovered: bool,
 }
 
 /// Messages that drive the Silo application.
@@ -73,6 +80,16 @@ enum Message {
     ChipHovered(usize, bool),
     /// A folder chip was pressed; opens the folder in the OS file explorer.
     ChipPressed(PathBuf),
+    /// A folder's size walk finished; carries the chip index and its label.
+    FolderSizeComputed(usize, String),
+    /// A folder chip was right-pressed; opens its remove menu.
+    ChipMenuRequested(usize),
+    /// The remove menu item was pressed; removes the folder at the index.
+    RemoveFolder(usize),
+    /// Dismisses the open chip remove menu.
+    CloseChipMenu,
+    /// The pointer entered or left the open remove menu row.
+    MenuHovered(bool),
     /// The logo was pressed; opens the About dialog.
     LogoPressed,
     /// Closes the About dialog.
@@ -146,13 +163,24 @@ fn update(state: &mut SiloApp, message: Message) -> Task<Message> {
                         // while the dialog stays open. Duplicates are skipped,
                         // mirroring the database rule.
                         if !state.folder_paths.contains(&path) {
-                            state.folder_paths.push(path);
+                            state.folder_paths.push(path.clone());
+                            state.folder_sizes.push("...".to_string());
+                            // Compute the size label for the new folder.
+                            return config_silo_dialog_folders::size_tasks(&[path])
+                                .pop()
+                                .unwrap_or_else(|| Task::none());
                         }
                     }
                     Err(err) => {
                         eprintln!("silo: could not save the selected folder {path:?}: {err}");
                     }
                 }
+            }
+            Task::none()
+        }
+        Message::FolderSizeComputed(index, size) => {
+            if let Some(slot) = state.folder_sizes.get_mut(index) {
+                *slot = size;
             }
             Task::none()
         }
@@ -169,6 +197,44 @@ fn update(state: &mut SiloApp, message: Message) -> Task<Message> {
             if let Err(err) = std::process::Command::new("xdg-open").arg(&path).spawn() {
                 eprintln!("silo: could not open the folder {path:?}: {err}");
             }
+            state.chip_menu = None;
+            state.menu_hovered = false;
+            Task::none()
+        }
+        Message::ChipMenuRequested(index) => {
+            // Right-pressing the same chip again collapses the menu.
+            state.chip_menu = if state.chip_menu == Some(index) {
+                None
+            } else {
+                Some(index)
+            };
+            state.menu_hovered = false;
+            Task::none()
+        }
+        Message::RemoveFolder(index) => {
+            if let Some(path) = state.folder_paths.get(index) {
+                match config::remove_data_path(path) {
+                    Ok(()) => {
+                        state.folder_paths.remove(index);
+                        state.folder_sizes.remove(index);
+                    }
+                    Err(err) => {
+                        eprintln!("silo: could not remove the folder {path:?}: {err}");
+                    }
+                }
+            }
+            state.chip_menu = None;
+            state.hovered_chip = None;
+            state.menu_hovered = false;
+            Task::none()
+        }
+        Message::CloseChipMenu => {
+            state.chip_menu = None;
+            state.menu_hovered = false;
+            Task::none()
+        }
+        Message::MenuHovered(hovered) => {
+            state.menu_hovered = hovered;
             Task::none()
         }
         Message::LogoPressed => {
@@ -181,6 +247,9 @@ fn update(state: &mut SiloApp, message: Message) -> Task<Message> {
         }
         Message::OpenConfigSiloDialog => {
             state.config_dialog_open = true;
+            state.chip_menu = None;
+            state.hovered_chip = None;
+            state.menu_hovered = false;
             // Load the saved source folders once at open. Reloading on every
             // redraw would read the database on each frame.
             state.folder_paths = match config::load() {
@@ -190,12 +259,17 @@ fn update(state: &mut SiloApp, message: Message) -> Task<Message> {
                     Vec::new()
                 }
             };
-            Task::none()
+            // Show a placeholder size label per folder and compute the real
+            // sizes asynchronously, so large folders do not freeze the UI.
+            state.folder_sizes = vec!["...".to_string(); state.folder_paths.len()];
+            Task::batch(config_silo_dialog_folders::size_tasks(&state.folder_paths))
         }
         Message::CloseConfigSiloDialog => {
             state.config_dialog_open = false;
             state.plus_hovered = false;
             state.hovered_chip = None;
+            state.chip_menu = None;
+            state.menu_hovered = false;
             Task::none()
         }
         Message::OpenSyncSiloDialog => {
@@ -240,7 +314,10 @@ fn view(state: &SiloApp) -> iced::Element<'_, Message> {
         stack = stack.push(config_silo_dialog::view(
             state.plus_hovered,
             &state.folder_paths,
+            &state.folder_sizes,
             state.hovered_chip,
+            state.chip_menu,
+            state.menu_hovered,
         ));
     }
 

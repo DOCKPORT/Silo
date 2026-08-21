@@ -9,4 +9,5 @@ pub mod font;
 pub mod mainwindow;
 pub mod scaling;
 pub mod scanlines;
+pub mod scrollbar;
 pub mod theme;

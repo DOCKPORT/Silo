@@ -65,7 +65,10 @@ const CLOSE_PAD_H: f32 = 28.0;
 /// `plus_hovered` reports whether the pointer is over the + button so it can
 /// show its hover color. `folder_paths` holds the selected source folders
 /// loaded at dialog open; it is passed down to the folder box for display.
+/// `folder_sizes` holds each folder's size label, parallel to `folder_paths`.
 /// `hovered_chip` is the index of the folder chip under the pointer, if any.
+/// `chip_menu` is the index of the chip whose remove menu is open, if any.
+/// `menu_hovered` reports whether the pointer is over the open remove menu.
 ///
 /// Returns a full-window overlay: a dimmed backdrop that closes the dialog on
 /// press, and a dialog box holding the folder and exclude panel boxes plus
@@ -76,7 +79,10 @@ const CLOSE_PAD_H: f32 = 28.0;
 pub fn view(
     plus_hovered: bool,
     folder_paths: &[PathBuf],
+    folder_sizes: &[String],
     hovered_chip: Option<usize>,
+    chip_menu: Option<usize>,
+    menu_hovered: bool,
 ) -> Element<'static, Message> {
     // The dimmed backdrop. Pressing it closes the dialog.
     let backdrop = MouseArea::new(
@@ -106,7 +112,10 @@ pub fn view(
         .push(super::config_silo_dialog_elements::view(
             plus_hovered,
             folder_paths,
+            folder_sizes,
             hovered_chip,
+            chip_menu,
+            menu_hovered,
         ))
         .push(close_button());
 

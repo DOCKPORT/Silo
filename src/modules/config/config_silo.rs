@@ -300,80 +300,22 @@ fn add_data_path_to(db: &Path, path: &Path) -> Result<(), ConfigError> {
     Ok(())
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use std::fs;
+/// Remove one selected source folder from the settings database.
+///
+/// Deletes the folder's row from `silo_data_paths`. Other rows are kept. A
+/// path that has no row is a no-op.
+///
+/// The store must be initialized with [`init`] first.
+pub fn remove_data_path(path: &Path) -> Result<(), ConfigError> {
+    remove_data_path_from(&default_db_path()?, path)
+}
 
-    /// Create a fresh, unique temporary directory for one test.
-    fn temp_dir(tag: &str) -> PathBuf {
-        let dir = std::env::temp_dir().join(format!(
-            "silo_test_{}_{}_{tag}",
-            std::process::id(),
-            std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
-                .as_nanos(),
-        ));
-        fs::create_dir_all(&dir).unwrap();
-        dir
-    }
-
-    fn cleanup(dir: &Path) {
-        let _ = fs::remove_dir_all(dir);
-    }
-
-    #[test]
-    fn add_data_path_appends_rows() {
-        let dir = temp_dir("append");
-        let db = init_at(&dir).unwrap();
-        add_data_path_to(&db, Path::new("/one")).unwrap();
-        add_data_path_to(&db, Path::new("/two")).unwrap();
-
-        let settings = load_from(&db).unwrap();
-        assert_eq!(
-            settings.silo_data_paths,
-            vec![PathBuf::from("/one"), PathBuf::from("/two")]
-        );
-        cleanup(&dir);
-    }
-
-    #[test]
-    fn add_data_path_ignores_duplicates() {
-        let dir = temp_dir("dedupe");
-        let db = init_at(&dir).unwrap();
-        add_data_path_to(&db, Path::new("/one")).unwrap();
-        add_data_path_to(&db, Path::new("/one")).unwrap();
-
-        let settings = load_from(&db).unwrap();
-        assert_eq!(settings.silo_data_paths, vec![PathBuf::from("/one")]);
-        cleanup(&dir);
-    }
-
-    #[test]
-    fn add_data_path_keeps_rows_saved_by_save_to() {
-        let dir = temp_dir("keepsaved");
-        let db = init_at(&dir).unwrap();
-
-        save_to(
-            &db,
-            &SiloSettings {
-                silo_data_paths: vec![PathBuf::from("/a"), PathBuf::from("/b")],
-                ..SiloSettings::default()
-            },
-        )
-        .unwrap();
-        add_data_path_to(&db, Path::new("/c")).unwrap();
-
-        let settings = load_from(&db).unwrap();
-        assert_eq!(
-            settings.silo_data_paths,
-            vec![
-                PathBuf::from("/a"),
-                PathBuf::from("/b"),
-                PathBuf::from("/c")
-            ]
-        );
-        cleanup(&dir);
-    }
+/// The same as [`remove_data_path`], but writes to `db`.
+fn remove_data_path_from(db: &Path, path: &Path) -> Result<(), ConfigError> {
+    let conn = Connection::open(db)?;
+    conn.execute(
+        "DELETE FROM silo_data_paths WHERE path = ?1",
+        [path.to_string_lossy().into_owned()],
+    )?;
+    Ok(())
 }

@@ -50,18 +50,31 @@ const PLUS_TEXT_SIZE: f32 = 22.0;
 ///
 /// Returns a full-size row: the folder box takes 70% of the width and the
 /// exclude box the remaining 30%, separated by a small gap. `folder_paths`
-/// are the selected source folders shown in the folder box. `hovered_chip`
-/// is the index of the folder chip under the pointer, if any.
+/// are the selected source folders shown in the folder box. `folder_sizes`
+/// holds each folder's size label, parallel to `folder_paths`. `hovered_chip`
+/// is the index of the folder chip under the pointer, if any. `chip_menu` is
+/// the index of the chip whose remove menu is open, if any. `menu_hovered`
+/// reports whether the pointer is over the open remove menu.
 pub fn view(
     plus_hovered: bool,
     folder_paths: &[PathBuf],
+    folder_sizes: &[String],
     hovered_chip: Option<usize>,
+    chip_menu: Option<usize>,
+    menu_hovered: bool,
 ) -> Element<'static, Message> {
     Row::new()
         .width(Length::Fill)
         .height(Length::Fill)
         .spacing(sp(BOX_SPACING))
-        .push(folder_box(plus_hovered, folder_paths, hovered_chip))
+        .push(folder_box(
+            plus_hovered,
+            folder_paths,
+            folder_sizes,
+            hovered_chip,
+            chip_menu,
+            menu_hovered,
+        ))
         .push(exclude_box())
         .into()
 }
@@ -72,7 +85,10 @@ pub fn view(
 fn folder_box(
     plus_hovered: bool,
     folder_paths: &[PathBuf],
+    folder_sizes: &[String],
     hovered_chip: Option<usize>,
+    chip_menu: Option<usize>,
+    menu_hovered: bool,
 ) -> Element<'static, Message> {
     let header = Row::new()
         .width(Length::Fill)
@@ -86,7 +102,13 @@ fn folder_box(
     boxed(
         Length::FillPortion(FOLDER_PART),
         header,
-        super::config_silo_dialog_folders::view(folder_paths, hovered_chip),
+        super::config_silo_dialog_folders::view(
+            folder_paths,
+            folder_sizes,
+            hovered_chip,
+            chip_menu,
+            menu_hovered,
+        ),
     )
 }
 
@@ -135,7 +157,7 @@ fn boxed(
             top: sp(BOX_PAD),
             left: sp(BOX_PAD),
             right: sp(BOX_PAD),
-            bottom: 0.0,
+            bottom: sp(BOX_PAD),
         })
         .style(|_| container::Style {
             background: None,
