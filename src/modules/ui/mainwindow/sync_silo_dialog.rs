@@ -2,9 +2,11 @@
 //!
 //! Shown when the SYNC SILO button in the action area is pressed. A
 //! centered dialog box sits on a dimmed full-window backdrop. Pressing the
-//! backdrop or the CLOSE button closes the dialog. The dialog content is
-//! intentionally empty for now; it will host the sync settings (destination,
-//! source folders, excludes) in a later step.
+//! backdrop or the CLOSE button closes the dialog. The dialog box holds the
+//! sync settings elements; the destination, source folders, and excludes
+//! panels are added in a later step.
+
+use std::path::Path;
 
 use iced::mouse;
 use iced::widget::{Column, MouseArea, Stack, container, text};
@@ -27,6 +29,12 @@ const TOP_ANCHOR_HEIGHT: f32 = 600.0;
 
 /// The gap between the bottom of the box and the CLOSE button, in ref px.
 const BOTTOM_PAD: f32 = 40.0;
+
+/// The gap between the panel boxes and the CLOSE button, in reference pixels.
+const CONTENT_SPACING: f32 = 20.0;
+
+/// The padding between the dialog box border and its content, in ref px.
+const CONTENT_PAD: f32 = 30.0;
 
 /// The width of the dialog border, in reference pixels.
 const BORDER_WIDTH: f32 = 2.0;
@@ -54,12 +62,29 @@ const CLOSE_PAD_H: f32 = 28.0;
 
 /// Builds the Sync Silo dialog overlay.
 ///
+/// `dest_path` is the saved rsync destination, or `None` before one is picked.
+/// `dest_plus_hovered` reports whether the pointer is over the + button in the
+/// destination box. `dest_chip_hovered` reports whether the pointer is over
+/// the destination chip. `dest_menu_open` reports whether the remove menu is
+/// open. `dest_menu_hovered` reports whether the pointer is over that menu.
+/// `dry_run_hovered` reports whether the pointer is over the DRY-RUN button.
+/// `sync_run_hovered` reports whether the pointer is over the SYNC button.
+///
 /// Returns a full-window overlay: a dimmed backdrop that closes the dialog on
-/// press, and a dialog box holding the CLOSE button. A "Sync Silo" title
-/// label sits just above the box. The box keeps the top position of a
-/// `TOP_ANCHOR_HEIGHT`-tall centered box, so the extra height extends only
-/// downward. The settings content is added in a later step.
-pub fn view() -> Element<'static, Message> {
+/// press, and a dialog box holding the sync settings elements and the CLOSE
+/// button. A "Sync Silo" title label sits just above the box. The box keeps
+/// the top position of a `TOP_ANCHOR_HEIGHT`-tall centered box, so the extra
+/// height extends only downward. The source folders and excludes panels are
+/// added in a later step.
+pub fn view<'a>(
+    dest_path: Option<&'a Path>,
+    dest_plus_hovered: bool,
+    dest_chip_hovered: bool,
+    dest_menu_open: bool,
+    dest_menu_hovered: bool,
+    dry_run_hovered: bool,
+    sync_run_hovered: bool,
+) -> Element<'a, Message> {
     // The dimmed backdrop. Pressing it closes the dialog.
     let backdrop = MouseArea::new(
         container(text(""))
@@ -78,9 +103,22 @@ pub fn view() -> Element<'static, Message> {
     )
     .on_press(Message::CloseSyncSiloDialog);
 
-    // The dialog content: the CLOSE button, bottom-center in the box.
+    // The dialog content: the sync settings elements on top and the CLOSE
+    // button at the bottom of the box.
     let content = Column::new()
+        .width(Length::Fill)
+        .height(Length::Fill)
         .align_x(iced::alignment::Horizontal::Center)
+        .spacing(sp(CONTENT_SPACING))
+        .push(super::sync_silo_dialog_elements::view(
+            dest_path,
+            dest_plus_hovered,
+            dest_chip_hovered,
+            dest_menu_open,
+            dest_menu_hovered,
+            dry_run_hovered,
+            sync_run_hovered,
+        ))
         .push(close_button());
 
     let dialog_box = container(content)
@@ -89,9 +127,9 @@ pub fn view() -> Element<'static, Message> {
         .align_x(iced::alignment::Horizontal::Center)
         .align_y(iced::alignment::Vertical::Bottom)
         .padding(Padding {
-            top: 0.0,
-            left: 0.0,
-            right: 0.0,
+            top: sp(CONTENT_PAD),
+            left: sp(CONTENT_PAD),
+            right: sp(CONTENT_PAD),
             bottom: sp(BOTTOM_PAD),
         })
         .style(|_| container::Style {

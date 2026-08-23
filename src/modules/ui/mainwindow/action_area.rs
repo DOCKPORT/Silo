@@ -79,12 +79,6 @@ const BUTTON_RIGHT_PADDING: f32 = 30.0;
 /// The width of the action button border, in reference pixels.
 const BUTTON_BORDER_WIDTH: f32 = 5.0;
 
-/// The glow alpha for the action buttons, softer than the shared glow.
-const BUTTON_GLOW_ALPHA: f32 = 0.55;
-
-/// The glow blur radius for the action buttons, in reference pixels.
-const BUTTON_GLOW_BLUR: f32 = 7.0;
-
 /// The vertical center of the band between the two orange rules.
 fn band_center() -> f32 {
     TOP_GAP + (LINE_THICKNESS + LINE_SPACING) / 2.0
@@ -262,12 +256,12 @@ fn status_labels(is_populated: bool, silo_size: &str) -> Element<'static, Messag
 
 /// Builds an action button: the single source of truth for the button look.
 ///
-/// An outlined rectangle with no fill, a `DETAIL` border and glow, and orange
-/// text. When `hovered` is true, the border and glow switch to `ORANGE` and the
-/// pointer cursor is shown. Pressing emits `on_press`; hovering emits
-/// `on_enter`/`on_exit`. The caller supplies the messages so every button
-/// shares one implementation while staying wired to its own state.
-fn silo_button(
+/// An outlined rectangle with no fill, a `DETAIL` border, and teal text. When
+/// `hovered` is true, the border switches to `ORANGE` and the pointer cursor
+/// is shown. Pressing emits `on_press`; hovering emits `on_enter`/`on_exit`.
+/// The caller supplies the messages so every button shares one implementation
+/// while staying wired to its own state.
+pub(crate) fn silo_button(
     label: &'static str,
     hovered: bool,
     on_press: Message,
@@ -294,14 +288,6 @@ fn silo_button(
                 color: accent,
                 width: sp(BUTTON_BORDER_WIDTH),
                 radius: 0.0.into(),
-            },
-            shadow: Shadow {
-                color: Color {
-                    a: BUTTON_GLOW_ALPHA,
-                    ..accent
-                },
-                offset: Vector::ZERO,
-                blur_radius: sp(BUTTON_GLOW_BLUR),
             },
             ..container::Style::default()
         });

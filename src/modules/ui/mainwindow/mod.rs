@@ -13,8 +13,9 @@ mod config_silo_dialog_exclude;
 mod config_silo_dialog_folders;
 mod sync_progress_bar;
 mod sync_silo_dialog;
+mod sync_silo_dialog_elements;
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use iced::widget::{Stack, container, text};
 use iced::window::Position;
@@ -44,6 +45,20 @@ pub struct SiloApp {
     config_dialog_open: bool,
     /// Whether the Sync Silo dialog is currently open.
     sync_dialog_open: bool,
+    /// The rsync destination path, loaded once when the Sync dialog opens.
+    rsync_dest_path: Option<PathBuf>,
+    /// Whether the pointer is currently over the + button in the destination box.
+    dest_plus_hovered: bool,
+    /// Whether the pointer is currently over the destination chip.
+    dest_chip_hovered: bool,
+    /// Whether the destination remove menu is open.
+    dest_menu_open: bool,
+    /// Whether the pointer is over the open destination remove menu.
+    dest_menu_hovered: bool,
+    /// Whether the pointer is currently over the DRY-RUN button.
+    dry_run_hovered: bool,
+    /// Whether the pointer is currently over the SYNC button in the dialog.
+    sync_run_hovered: bool,
     /// The selected source folders, loaded once when the Config dialog opens.
     folder_paths: Vec<PathBuf>,
     /// The size label of each folder, parallel to `folder_paths`. Filled in
@@ -134,6 +149,35 @@ enum Message {
     OpenSyncSiloDialog,
     /// Closes the Sync Silo dialog.
     CloseSyncSiloDialog,
+    /// The pointer entered or left the + button in the destination box.
+    DestPlusHovered(bool),
+    /// The + button in the destination box was pressed; opens the OS native
+    /// folder picker.
+    DestPlusPressed,
+    /// The folder picker returned a chosen destination, or `None` if the user
+    /// cancelled. A chosen folder replaces the row in `rsync_dest_path`.
+    DestFolderPicked(Option<PathBuf>),
+    /// The pointer entered or left the destination chip.
+    DestChipHovered(bool),
+    /// The destination chip was pressed; opens the folder in the OS file
+    /// explorer.
+    DestChipPressed,
+    /// The destination chip was right-pressed; opens its remove menu.
+    DestChipMenuRequested,
+    /// The remove menu item was pressed; removes the destination.
+    RemoveDestPath,
+    /// Dismisses the open destination remove menu.
+    CloseDestMenu,
+    /// The pointer entered or left the open destination remove menu.
+    DestMenuHovered(bool),
+    /// The pointer entered or left the DRY-RUN button.
+    DryRunHovered(bool),
+    /// The DRY-RUN button was pressed; runs a dry run (added in a later step).
+    DryRunPressed,
+    /// The pointer entered or left the SYNC button in the dialog.
+    SyncRunHovered(bool),
+    /// The SYNC button was pressed; runs a sync (added in a later step).
+    SyncRunPressed,
     /// The GitHub logo was pressed; opens the project page.
     OpenGithub,
     /// A no-op message used to absorb clicks.
@@ -189,31 +233,14 @@ fn update(state: &mut SiloApp, message: Message) -> Task<Message> {
             Scaling::global().set_window_size(size.width, size.height);
             Task::none()
         }
-        Message::LogoHovered(hovered) => {
-            state.logo_hovered = hovered;
-            Task::none()
-        }
-        Message::ConfigHovered(hovered) => {
-            state.config_hovered = hovered;
-            Task::none()
-        }
-        Message::SyncHovered(hovered) => {
-            state.sync_hovered = hovered;
-            Task::none()
-        }
-        Message::PlusHovered(hovered) => {
-            state.plus_hovered = hovered;
-            Task::none()
-        }
+        Message::LogoHovered(hovered) => set_hovered(&mut state.logo_hovered, hovered),
+        Message::ConfigHovered(hovered) => set_hovered(&mut state.config_hovered, hovered),
+        Message::SyncHovered(hovered) => set_hovered(&mut state.sync_hovered, hovered),
+        Message::PlusHovered(hovered) => set_hovered(&mut state.plus_hovered, hovered),
         Message::PlusPressed => {
             // Open the OS native folder picker. The picked folder arrives as
             // `FolderPicked`; the folder list is added in a later step.
-            Task::perform(
-                rfd::AsyncFileDialog::new()
-                    .set_title("Select a source folder")
-                    .pick_folder(),
-                |file| Message::FolderPicked(file.map(|handle| handle.path().to_path_buf())),
-            )
+            pick_folder("Select a source folder", Message::FolderPicked)
         }
         Message::FolderPicked(selection) => {
             if let Some(path) = selection {
@@ -267,9 +294,7 @@ fn update(state: &mut SiloApp, message: Message) -> Task<Message> {
         }
         Message::ChipPressed(path) => {
             // Open the folder in the native OS file explorer.
-            if let Err(err) = std::process::Command::new("xdg-open").arg(&path).spawn() {
-                eprintln!("silo: could not open the folder {path:?}: {err}");
-            }
+            open_in_file_explorer(&path);
             state.chip_menu = None;
             state.menu_hovered = false;
             Task::none()
@@ -307,13 +332,9 @@ fn update(state: &mut SiloApp, message: Message) -> Task<Message> {
             state.menu_hovered = false;
             Task::none()
         }
-        Message::MenuHovered(hovered) => {
-            state.menu_hovered = hovered;
-            Task::none()
-        }
+        Message::MenuHovered(hovered) => set_hovered(&mut state.menu_hovered, hovered),
         Message::ExcludePlusHovered(hovered) => {
-            state.exclude_plus_hovered = hovered;
-            Task::none()
+            set_hovered(&mut state.exclude_plus_hovered, hovered)
         }
         Message::ExcludePlusPressed => {
             // Add a new empty pattern chip and persist the list.
@@ -353,8 +374,7 @@ fn update(state: &mut SiloApp, message: Message) -> Task<Message> {
             Task::none()
         }
         Message::ExcludeMenuHovered(hovered) => {
-            state.exclude_menu_hovered = hovered;
-            Task::none()
+            set_hovered(&mut state.exclude_menu_hovered, hovered)
         }
         Message::LogoPressed => {
             state.about_open = true;
@@ -366,9 +386,7 @@ fn update(state: &mut SiloApp, message: Message) -> Task<Message> {
         }
         Message::OpenConfigSiloDialog => {
             state.config_dialog_open = true;
-            state.chip_menu = None;
-            state.hovered_chip = None;
-            state.menu_hovered = false;
+            reset_config_dialog(state);
             // Load the saved settings once at open. Reloading on every
             // redraw would read the database on each frame.
             match config::load() {
@@ -391,23 +409,93 @@ fn update(state: &mut SiloApp, message: Message) -> Task<Message> {
         }
         Message::CloseConfigSiloDialog => {
             state.config_dialog_open = false;
-            state.plus_hovered = false;
-            state.hovered_chip = None;
-            state.chip_menu = None;
-            state.menu_hovered = false;
-            state.exclude_plus_hovered = false;
-            state.exclude_menu = None;
-            state.exclude_menu_hovered = false;
+            reset_config_dialog(state);
             // The folders or exclude patterns may have changed while the
             // dialog was open, so recompute the total size in the background.
             silo_size_task()
         }
         Message::OpenSyncSiloDialog => {
             state.sync_dialog_open = true;
+            reset_sync_dialog(state);
+            // Load the saved destination once at open. Reloading on every
+            // redraw would read the database on each frame.
+            match config::load() {
+                Ok(settings) => state.rsync_dest_path = settings.rsync_dest_path,
+                Err(err) => {
+                    eprintln!("silo: could not load the saved settings: {err}");
+                    state.rsync_dest_path = None;
+                }
+            };
             Task::none()
         }
         Message::CloseSyncSiloDialog => {
             state.sync_dialog_open = false;
+            reset_sync_dialog(state);
+            Task::none()
+        }
+        Message::DestPlusHovered(hovered) => set_hovered(&mut state.dest_plus_hovered, hovered),
+        Message::DestPlusPressed => {
+            // Open the OS native folder picker. The picked folder arrives as
+            // `DestFolderPicked`.
+            pick_folder("Select a sync destination", Message::DestFolderPicked)
+        }
+        Message::DestFolderPicked(selection) => {
+            if let Some(path) = selection {
+                // Replace the destination row, keeping exactly one path in
+                // the table, and mirror the new path in the dialog state.
+                match config::set_rsync_dest_path(Some(&path)) {
+                    Ok(()) => state.rsync_dest_path = Some(path),
+                    Err(err) => {
+                        eprintln!("silo: could not save the destination folder {path:?}: {err}");
+                    }
+                }
+            }
+            Task::none()
+        }
+        Message::DestChipHovered(hovered) => set_hovered(&mut state.dest_chip_hovered, hovered),
+        Message::DestChipPressed => {
+            // Open the destination folder in the native OS file explorer.
+            if let Some(path) = &state.rsync_dest_path {
+                open_in_file_explorer(path);
+            }
+            state.dest_menu_open = false;
+            state.dest_menu_hovered = false;
+            Task::none()
+        }
+        Message::DestChipMenuRequested => {
+            // Right-pressing the chip again collapses the menu.
+            state.dest_menu_open = !state.dest_menu_open;
+            state.dest_menu_hovered = false;
+            Task::none()
+        }
+        Message::DestMenuHovered(hovered) => set_hovered(&mut state.dest_menu_hovered, hovered),
+        Message::RemoveDestPath => {
+            // Clear the destination row, keeping exactly one row in the
+            // table, and mirror the change in the dialog state.
+            match config::set_rsync_dest_path(None) {
+                Ok(()) => state.rsync_dest_path = None,
+                Err(err) => {
+                    eprintln!("silo: could not remove the destination folder: {err}");
+                }
+            }
+            state.dest_chip_hovered = false;
+            state.dest_menu_open = false;
+            state.dest_menu_hovered = false;
+            Task::none()
+        }
+        Message::CloseDestMenu => {
+            state.dest_menu_open = false;
+            state.dest_menu_hovered = false;
+            Task::none()
+        }
+        Message::DryRunHovered(hovered) => set_hovered(&mut state.dry_run_hovered, hovered),
+        Message::DryRunPressed => {
+            // The dry-run logic is added in a later step.
+            Task::none()
+        }
+        Message::SyncRunHovered(hovered) => set_hovered(&mut state.sync_run_hovered, hovered),
+        Message::SyncRunPressed => {
+            // The sync logic is added in a later step.
             Task::none()
         }
         Message::OpenGithub => {
@@ -419,6 +507,54 @@ fn update(state: &mut SiloApp, message: Message) -> Task<Message> {
         }
         Message::NoOp => Task::none(),
     }
+}
+
+/// Sets a boolean hover flag and returns a no-op task.
+fn set_hovered(slot: &mut bool, hovered: bool) -> Task<Message> {
+    *slot = hovered;
+    Task::none()
+}
+
+/// Opens the OS native folder picker with the given title.
+///
+/// The picked folder maps through `map`, which the caller uses to produce
+/// `Message::FolderPicked` or `Message::DestFolderPicked`.
+fn pick_folder(
+    title: &'static str,
+    map: impl Fn(Option<PathBuf>) -> Message + Send + 'static,
+) -> Task<Message> {
+    Task::perform(
+        rfd::AsyncFileDialog::new().set_title(title).pick_folder(),
+        move |file| map(file.map(|handle| handle.path().to_path_buf())),
+    )
+}
+
+/// Opens a folder in the native OS file explorer.
+fn open_in_file_explorer(path: &Path) {
+    if let Err(err) = std::process::Command::new("xdg-open").arg(path).spawn() {
+        eprintln!("silo: could not open the folder {path:?}: {err}");
+    }
+}
+
+/// Resets the Config dialog interaction flags.
+fn reset_config_dialog(state: &mut SiloApp) {
+    state.plus_hovered = false;
+    state.hovered_chip = None;
+    state.chip_menu = None;
+    state.menu_hovered = false;
+    state.exclude_plus_hovered = false;
+    state.exclude_menu = None;
+    state.exclude_menu_hovered = false;
+}
+
+/// Resets the Sync dialog interaction flags.
+fn reset_sync_dialog(state: &mut SiloApp) {
+    state.dest_plus_hovered = false;
+    state.dest_chip_hovered = false;
+    state.dest_menu_open = false;
+    state.dest_menu_hovered = false;
+    state.dry_run_hovered = false;
+    state.sync_run_hovered = false;
 }
 
 /// Persist the current exclude patterns to the database.
@@ -465,7 +601,15 @@ fn view(state: &SiloApp) -> iced::Element<'_, Message> {
     }
 
     if state.sync_dialog_open {
-        stack = stack.push(sync_silo_dialog::view());
+        stack = stack.push(sync_silo_dialog::view(
+            state.rsync_dest_path.as_deref(),
+            state.dest_plus_hovered,
+            state.dest_chip_hovered,
+            state.dest_menu_open,
+            state.dest_menu_hovered,
+            state.dry_run_hovered,
+            state.sync_run_hovered,
+        ));
     }
 
     // The scanlines stay on top of everything, including the dialog, for the

@@ -347,3 +347,26 @@ fn replace_excludes_from(db: &Path, excludes: &[String]) -> Result<(), ConfigErr
     tx.commit()?;
     Ok(())
 }
+
+/// Set the rsync destination path in the settings database.
+///
+/// Deletes the existing row in `rsync_dest_path`, then inserts the new path,
+/// so the table always holds exactly one row. `None` clears the destination.
+///
+/// The store must be initialized with [`init`] first.
+pub fn set_rsync_dest_path(path: Option<&Path>) -> Result<(), ConfigError> {
+    set_rsync_dest_path_to(&default_db_path()?, path)
+}
+
+/// The same as [`set_rsync_dest_path`], but writes to `db`.
+fn set_rsync_dest_path_to(db: &Path, path: Option<&Path>) -> Result<(), ConfigError> {
+    let mut conn = Connection::open(db)?;
+    let tx = conn.transaction()?;
+
+    tx.execute("DELETE FROM rsync_dest_path", [])?;
+    let value = path.map(|path| path.to_string_lossy().into_owned());
+    tx.execute("INSERT INTO rsync_dest_path (path) VALUES (?1)", [value])?;
+
+    tx.commit()?;
+    Ok(())
+}
