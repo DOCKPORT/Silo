@@ -136,7 +136,6 @@ fn create_schema(conn: &Connection) -> Result<(), ConfigError> {
     conn.execute_batch(
         r#"
         CREATE TABLE IF NOT EXISTS silo_data_paths (
-            id INTEGER PRIMARY KEY,
             path TEXT NOT NULL
         );
 
@@ -144,22 +143,21 @@ fn create_schema(conn: &Connection) -> Result<(), ConfigError> {
             ON silo_data_paths (path);
 
         CREATE TABLE IF NOT EXISTS exclude (
-            id INTEGER PRIMARY KEY,
             pattern TEXT NOT NULL
         );
 
         CREATE TABLE IF NOT EXISTS last_sync (
-            id INTEGER PRIMARY KEY CHECK (id = 1),
             timestamp INTEGER
         );
 
         CREATE TABLE IF NOT EXISTS rsync_dest_path (
-            id INTEGER PRIMARY KEY CHECK (id = 1),
             path TEXT
         );
 
-        INSERT OR IGNORE INTO last_sync (id, timestamp) VALUES (1, NULL);
-        INSERT OR IGNORE INTO rsync_dest_path (id, path) VALUES (1, NULL);
+        INSERT INTO last_sync (timestamp)
+            SELECT NULL WHERE NOT EXISTS (SELECT 1 FROM last_sync);
+        INSERT INTO rsync_dest_path (path)
+            SELECT NULL WHERE NOT EXISTS (SELECT 1 FROM rsync_dest_path);
         "#,
     )?;
     Ok(())
@@ -184,7 +182,7 @@ fn load_from(db: &Path) -> Result<SiloSettings, ConfigError> {
     let excludes = load_text_column(&conn, "exclude", "pattern")?;
 
     let last_sync_timestamp = conn
-        .query_row("SELECT timestamp FROM last_sync WHERE id = 1", [], |row| {
+        .query_row("SELECT timestamp FROM last_sync", [], |row| {
             let value: Option<i64> = row.get(0)?;
             Ok(value)
         })
@@ -192,7 +190,7 @@ fn load_from(db: &Path) -> Result<SiloSettings, ConfigError> {
         .flatten();
 
     let rsync_dest_path = conn
-        .query_row("SELECT path FROM rsync_dest_path WHERE id = 1", [], |row| {
+        .query_row("SELECT path FROM rsync_dest_path", [], |row| {
             let value: Option<String> = row.get(0)?;
             Ok(value)
         })
@@ -216,7 +214,9 @@ fn load_text_column(
     table: &str,
     column: &str,
 ) -> Result<Vec<String>, ConfigError> {
-    let sql = format!("SELECT {column} FROM {table} ORDER BY id");
+    // `rowid` preserves insertion order whether or not the table declares an
+    // explicit `id` column.
+    let sql = format!("SELECT {column} FROM {table} ORDER BY rowid");
     let mut stmt = conn.prepare(&sql)?;
     let rows = stmt.query_map([], |row| {
         let value: String = row.get(0)?;
@@ -257,10 +257,11 @@ fn save_to(db: &Path, settings: &SiloSettings) -> Result<(), ConfigError> {
         }
     }
 
-    // Upsert the two singleton rows.
+    // Replace the two singleton rows. Deleting then inserting keeps exactly
+    // one row in each table.
+    tx.execute("DELETE FROM last_sync", [])?;
     tx.execute(
-        "INSERT INTO last_sync (id, timestamp) VALUES (1, ?1)
-         ON CONFLICT (id) DO UPDATE SET timestamp = ?1",
+        "INSERT INTO last_sync (timestamp) VALUES (?1)",
         [settings.last_sync_timestamp],
     )?;
 
@@ -268,9 +269,9 @@ fn save_to(db: &Path, settings: &SiloSettings) -> Result<(), ConfigError> {
         .rsync_dest_path
         .as_ref()
         .map(|path| path.to_string_lossy().into_owned());
+    tx.execute("DELETE FROM rsync_dest_path", [])?;
     tx.execute(
-        "INSERT INTO rsync_dest_path (id, path) VALUES (1, ?1)
-         ON CONFLICT (id) DO UPDATE SET path = ?1",
+        "INSERT INTO rsync_dest_path (path) VALUES (?1)",
         [dest_path],
     )?;
 
@@ -317,5 +318,32 @@ fn remove_data_path_from(db: &Path, path: &Path) -> Result<(), ConfigError> {
         "DELETE FROM silo_data_paths WHERE path = ?1",
         [path.to_string_lossy().into_owned()],
     )?;
+    Ok(())
+}
+
+/// Replace all exclude patterns in the settings database.
+///
+/// Deletes every row in `exclude`, then inserts one row per non-empty
+/// pattern, in order. Empty patterns are skipped.
+///
+/// The store must be initialized with [`init`] first.
+pub fn replace_excludes(excludes: &[String]) -> Result<(), ConfigError> {
+    replace_excludes_from(&default_db_path()?, excludes)
+}
+
+/// The same as [`replace_excludes`], but writes to `db`.
+fn replace_excludes_from(db: &Path, excludes: &[String]) -> Result<(), ConfigError> {
+    let mut conn = Connection::open(db)?;
+    let tx = conn.transaction()?;
+
+    tx.execute("DELETE FROM exclude", [])?;
+    {
+        let mut stmt = tx.prepare("INSERT INTO exclude (pattern) VALUES (?1)")?;
+        for pattern in excludes.iter().filter(|pattern| !pattern.is_empty()) {
+            stmt.execute([pattern.as_str()])?;
+        }
+    }
+
+    tx.commit()?;
     Ok(())
 }

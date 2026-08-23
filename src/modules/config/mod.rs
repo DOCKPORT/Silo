@@ -7,5 +7,5 @@
 pub mod config_silo;
 
 pub use config_silo::{
-    ConfigError, SiloSettings, add_data_path, init, load, remove_data_path, save,
+    ConfigError, SiloSettings, add_data_path, init, load, remove_data_path, replace_excludes, save,
 };

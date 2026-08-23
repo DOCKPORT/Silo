@@ -69,6 +69,11 @@ const CLOSE_PAD_H: f32 = 28.0;
 /// `hovered_chip` is the index of the folder chip under the pointer, if any.
 /// `chip_menu` is the index of the chip whose remove menu is open, if any.
 /// `menu_hovered` reports whether the pointer is over the open remove menu.
+/// `exclude_plus_hovered` reports whether the pointer is over the + button in
+/// the exclude box. `exclude_patterns` holds the current exclude patterns,
+/// one string per pattern chip. `exclude_menu` is the index of the exclude
+/// chip whose delete menu is open, if any. `exclude_menu_hovered` reports
+/// whether the pointer is over that menu.
 ///
 /// Returns a full-window overlay: a dimmed backdrop that closes the dialog on
 /// press, and a dialog box holding the folder and exclude panel boxes plus
@@ -76,14 +81,18 @@ const CLOSE_PAD_H: f32 = 28.0;
 /// The box keeps the top position of a `TOP_ANCHOR_HEIGHT`-tall centered box,
 /// so the extra height extends only downward. The settings fields are added
 /// in a later step.
-pub fn view(
+pub fn view<'a>(
     plus_hovered: bool,
     folder_paths: &[PathBuf],
     folder_sizes: &[String],
     hovered_chip: Option<usize>,
     chip_menu: Option<usize>,
     menu_hovered: bool,
-) -> Element<'static, Message> {
+    exclude_plus_hovered: bool,
+    exclude_patterns: &'a [String],
+    exclude_menu: Option<usize>,
+    exclude_menu_hovered: bool,
+) -> Element<'a, Message> {
     // The dimmed backdrop. Pressing it closes the dialog.
     let backdrop = MouseArea::new(
         container(text(""))
@@ -116,6 +125,10 @@ pub fn view(
             hovered_chip,
             chip_menu,
             menu_hovered,
+            exclude_plus_hovered,
+            exclude_patterns,
+            exclude_menu,
+            exclude_menu_hovered,
         ))
         .push(close_button());
 

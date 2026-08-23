@@ -13,6 +13,8 @@
 use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
+use std::sync::{Condvar, Mutex};
 
 use iced::mouse;
 use iced::widget::{Column, MouseArea, Row, Space, container, svg, text};
@@ -59,42 +61,119 @@ const FOLDER_ICON_BYTES: &[u8] = include_bytes!(concat!(
 
 /// The total size of the folder in bytes, including all nested files.
 ///
-/// Walks the folder recursively with an explicit stack, so deep trees cannot
-/// overflow the call stack. Symlinks are skipped: directory symlinks cannot
-/// loop back, and file symlinks are not double-counted. Any unreadable file
-/// or sub-directory aborts the walk with the first [`io::Error`]; the UI can
-/// then show a fallback such as `N/A`.
+/// Walks the tree in parallel with a small worker pool, so large folders
+/// finish much faster than a single-threaded walk. Symlinks are skipped:
+/// directory symlinks cannot loop back, and file symlinks are not
+/// double-counted. The root must be readable; any other read failure is
+/// recorded and returned after the walk, so the UI can show a fallback such
+/// as `N/A`.
 fn folder_size_bytes(path: &Path) -> io::Result<u64> {
-    let mut total = 0u64;
-    let mut pending = vec![path.to_path_buf()];
+    // The root must be readable; any failure here aborts.
+    fs::read_dir(path)?;
 
-    while let Some(dir) = pending.pop() {
-        for entry in fs::read_dir(&dir)? {
-            let entry = entry?;
-            let file_type = entry.file_type()?;
+    let total = AtomicU64::new(0);
+    let pending = AtomicUsize::new(1);
+    let queue = Mutex::new(vec![path.to_path_buf()]);
+    let cv = Condvar::new();
+    let first_error: Mutex<Option<io::Error>> = Mutex::new(None);
+    let first_error = &first_error;
 
-            if file_type.is_dir() {
-                pending.push(entry.path());
-            } else if file_type.is_file() {
-                total += entry.metadata()?.len();
-            }
-            // Symlinks are skipped by `file_type`: they are neither a file
-            // nor a directory for the purposes of this walk.
+    let workers = std::thread::available_parallelism()
+        .map(|count| count.get())
+        .unwrap_or(1)
+        .min(8);
+
+    std::thread::scope(|scope| {
+        for _ in 0..workers {
+            scope.spawn(|| {
+                loop {
+                    // Take the next directory to scan, waiting while the queue
+                    // is empty but other workers still have work pending.
+                    let dir = {
+                        let mut queue = queue.lock().unwrap();
+                        loop {
+                            if let Some(dir) = queue.pop() {
+                                break dir;
+                            }
+                            if pending.load(Ordering::Acquire) == 0 {
+                                return;
+                            }
+                            queue = cv.wait(queue).unwrap();
+                        }
+                    };
+
+                    match fs::read_dir(&dir) {
+                        Ok(entries) => {
+                            for entry in entries {
+                                let entry = match entry {
+                                    Ok(entry) => entry,
+                                    Err(err) => {
+                                        record(first_error, err);
+                                        continue;
+                                    }
+                                };
+                                let file_type = match entry.file_type() {
+                                    Ok(file_type) => file_type,
+                                    Err(err) => {
+                                        record(first_error, err);
+                                        continue;
+                                    }
+                                };
+
+                                if file_type.is_dir() {
+                                    pending.fetch_add(1, Ordering::AcqRel);
+                                    queue.lock().unwrap().push(entry.path());
+                                    cv.notify_one();
+                                } else if file_type.is_file() {
+                                    match entry.metadata() {
+                                        Ok(metadata) => {
+                                            total.fetch_add(metadata.len(), Ordering::Relaxed);
+                                        }
+                                        Err(err) => record(first_error, err),
+                                    }
+                                }
+                                // Symlinks are skipped by `file_type`: they are
+                                // neither a file nor a directory for the purposes
+                                // of this walk.
+                            }
+                        }
+                        Err(err) => record(first_error, err),
+                    }
+
+                    // This directory is done. When the last pending directory
+                    // finishes, wake every worker so they can exit.
+                    if pending.fetch_sub(1, Ordering::AcqRel) == 1 {
+                        cv.notify_all();
+                    }
+                }
+            });
         }
+    });
+
+    if let Some(err) = first_error.lock().unwrap().take() {
+        return Err(err);
     }
 
-    Ok(total)
+    Ok(total.load(Ordering::Relaxed))
+}
+
+/// Record the first error encountered during a parallel walk.
+fn record(first_error: &Mutex<Option<io::Error>>, err: io::Error) {
+    let mut slot = first_error.lock().unwrap();
+    if slot.is_none() {
+        *slot = Some(err);
+    }
 }
 
 /// Format a byte count as a human-readable size string.
 ///
-/// Uses binary units: 1 KB = 1024 bytes. Whole bytes print without a
-/// decimal; the larger units print with one decimal place.
+/// Uses binary units: 1 KB = 1024 bytes. A zero count renders as `0 B`;
+/// everything else prints with two decimal places and a space.
 fn human_size(bytes: u64) -> String {
     const UNITS: [&str; 6] = ["B", "KB", "MB", "GB", "TB", "PB"];
 
-    if bytes < 1024 {
-        return format!("{bytes} B");
+    if bytes == 0 {
+        return "0 B".to_string();
     }
 
     let mut value = bytes as f64;
@@ -104,7 +183,7 @@ fn human_size(bytes: u64) -> String {
         unit += 1;
     }
 
-    format!("{value:.1} {}", UNITS[unit])
+    format!("{value:.2} {}", UNITS[unit])
 }
 
 /// The folder's total data size as a human-readable string.
@@ -118,18 +197,21 @@ fn folder_size(path: &Path) -> Result<String, io::Error> {
 /// Builds one async task per folder to compute its size label.
 ///
 /// Each task walks its folder and maps the result to
-/// `Message::FolderSizeComputed(index, label)`. An unreadable folder maps to
-/// the label `N/A`.
+/// `Message::FolderSizeComputed(path, label)`. The label is matched back to
+/// its chip by path when it arrives, so list changes during the walk cannot
+/// misplace it. An unreadable folder maps to the label `N/A`.
 pub fn size_tasks(paths: &[PathBuf]) -> Vec<Task<Message>> {
     paths
         .iter()
-        .enumerate()
-        .map(|(index, path)| {
+        .map(|path| {
             let path = path.clone();
-            Task::perform(async move { folder_size(&path) }, move |result| {
-                let label = result.unwrap_or_else(|_| "N/A".to_string());
-                Message::FolderSizeComputed(index, label)
-            })
+            Task::perform(
+                async move {
+                    let label = folder_size(&path).unwrap_or_else(|_| "N/A".to_string());
+                    Message::FolderSizeComputed(path, label)
+                },
+                std::convert::identity,
+            )
         })
         .collect()
 }
@@ -141,13 +223,13 @@ pub fn size_tasks(paths: &[PathBuf]) -> Vec<Task<Message>> {
 /// is the index of the chip under the pointer, if any. `chip_menu` is the
 /// index of the chip whose remove menu is open, if any. Each folder renders
 /// as one bordered chip showing the folder's last path component and size.
-pub fn view(
+pub fn view<'a>(
     paths: &[PathBuf],
     sizes: &[String],
     hovered_chip: Option<usize>,
     chip_menu: Option<usize>,
     menu_hovered: bool,
-) -> Element<'static, Message> {
+) -> Element<'a, Message> {
     folder_list(paths, sizes, hovered_chip, chip_menu, menu_hovered)
 }
 
@@ -156,7 +238,7 @@ pub fn view(
 /// The row shows "Remove folder (name) from Silo". The text is grey by
 /// default and turns ORANGE while hovered. Pressing the row sends
 /// `Message::RemoveFolder`.
-fn remove_menu(path: &Path, index: usize, hovered: bool) -> Element<'static, Message> {
+fn remove_menu<'a>(path: &Path, index: usize, hovered: bool) -> Element<'a, Message> {
     let name = path
         .file_name()
         .map(|name| name.to_string_lossy().into_owned())
@@ -195,13 +277,13 @@ fn remove_menu(path: &Path, index: usize, hovered: bool) -> Element<'static, Mes
 /// Builds one bordered chip per folder, stacked in a column inside the app
 /// scrollbar. The remove menu row is inserted under the right-clicked chip.
 /// The list scrolls when the chips overflow the folder box.
-fn folder_list(
+fn folder_list<'a>(
     paths: &[PathBuf],
     sizes: &[String],
     hovered_chip: Option<usize>,
     chip_menu: Option<usize>,
     menu_hovered: bool,
-) -> Element<'static, Message> {
+) -> Element<'a, Message> {
     let column = paths.iter().zip(sizes.iter()).enumerate().fold(
         Column::new().width(Length::Fill).spacing(sp(CHIP_SPACING)),
         |column, (index, (path, size))| {
@@ -232,7 +314,7 @@ fn folder_list(
 /// uses the DETAIL accent color and turns ORANGE while hovered. Pressing the
 /// chip opens the folder in the OS file explorer; right-pressing it opens the
 /// remove menu.
-fn folder_chip(path: &Path, index: usize, hovered: bool, size: &str) -> Element<'static, Message> {
+fn folder_chip<'a>(path: &Path, index: usize, hovered: bool, size: &str) -> Element<'a, Message> {
     let name = path
         .file_name()
         .map(|name| name.to_string_lossy().into_owned())

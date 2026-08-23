@@ -9,6 +9,7 @@ mod about_dialog;
 mod action_area;
 mod config_silo_dialog;
 mod config_silo_dialog_elements;
+mod config_silo_dialog_exclude;
 mod config_silo_dialog_folders;
 mod sync_progress_bar;
 mod sync_silo_dialog;
@@ -19,7 +20,7 @@ use iced::widget::{Stack, container, text};
 use iced::window::Position;
 use iced::{Length, Size, Subscription, Task, application};
 
-use crate::modules::config;
+use crate::modules::{config, silo_size};
 
 use super::font;
 use super::scaling::Scaling;
@@ -54,6 +55,21 @@ pub struct SiloApp {
     chip_menu: Option<usize>,
     /// Whether the pointer is over the open remove menu row.
     menu_hovered: bool,
+    /// Whether the pointer is currently over the + button in the exclude box.
+    exclude_plus_hovered: bool,
+    /// The exclude patterns, one string per pattern chip.
+    exclude_patterns: Vec<String>,
+    /// The index of the exclude chip whose delete menu is open, if any.
+    exclude_menu: Option<usize>,
+    /// Whether the pointer is over the open exclude delete menu.
+    exclude_menu_hovered: bool,
+    /// Whether the silo has at least one source folder in `silo_data_paths`.
+    /// Drives the live STATUS label in the action area.
+    is_populated: bool,
+    /// The human-readable total silo size, for example "5.46GB". Holds "--"
+    /// while the first computation runs, and "N/A" when a source folder
+    /// cannot be read.
+    silo_size: String,
 }
 
 /// Messages that drive the Silo application.
@@ -80,8 +96,10 @@ enum Message {
     ChipHovered(usize, bool),
     /// A folder chip was pressed; opens the folder in the OS file explorer.
     ChipPressed(PathBuf),
-    /// A folder's size walk finished; carries the chip index and its label.
-    FolderSizeComputed(usize, String),
+    /// A folder's size walk finished; carries the folder path and its label.
+    FolderSizeComputed(PathBuf, String),
+    /// A background total-size computation finished; carries the size label.
+    SiloSizeComputed(String),
     /// A folder chip was right-pressed; opens its remove menu.
     ChipMenuRequested(usize),
     /// The remove menu item was pressed; removes the folder at the index.
@@ -90,6 +108,20 @@ enum Message {
     CloseChipMenu,
     /// The pointer entered or left the open remove menu row.
     MenuHovered(bool),
+    /// The pointer entered or left the + button in the exclude box.
+    ExcludePlusHovered(bool),
+    /// The + button in the exclude box was pressed; adds a new pattern chip.
+    ExcludePlusPressed,
+    /// A pattern chip's text changed; carries the chip index and new value.
+    ExcludePatternChanged(usize, String),
+    /// An exclude chip was right-pressed; opens its delete menu.
+    ExcludeMenuRequested(usize),
+    /// The delete menu item was pressed; removes the pattern at the index.
+    ExcludePatternRemoved(usize),
+    /// Dismisses the open exclude delete menu.
+    CloseExcludeMenu,
+    /// The pointer entered or left the open exclude delete menu.
+    ExcludeMenuHovered(bool),
     /// The logo was pressed; opens the About dialog.
     LogoPressed,
     /// Closes the About dialog.
@@ -110,9 +142,40 @@ enum Message {
 
 /// Boots the Silo application.
 ///
-/// Returns the initial state and a no-op [`Task`].
+/// Returns the initial state and a no-op [`Task`]. The populated flag is read
+/// once from the settings database, so the STATUS label is live from the
+/// first frame. Reading again on every frame would hit the database each
+/// redraw.
 fn new() -> (SiloApp, Task<Message>) {
-    (SiloApp::default(), Task::none())
+    let is_populated = match config::load() {
+        Ok(settings) => !settings.silo_data_paths.is_empty(),
+        Err(err) => {
+            eprintln!("silo: could not load the saved settings: {err}");
+            false
+        }
+    };
+    (
+        SiloApp {
+            is_populated,
+            silo_size: "--".to_string(),
+            ..SiloApp::default()
+        },
+        // Compute the total silo size in the background, so the SILO SIZE
+        // label is live from the first frame.
+        silo_size_task(),
+    )
+}
+
+/// Spawns a background task that computes the total silo size.
+///
+/// The task reads the current settings from the database, so it reflects the
+/// latest folders and exclude patterns. The result maps to
+/// `Message::SiloSizeComputed`; an unreadable source folder maps to `N/A`.
+fn silo_size_task() -> Task<Message> {
+    Task::perform(
+        async { silo_size::silo_size_label() },
+        Message::SiloSizeComputed,
+    )
 }
 
 /// Handles application messages.
@@ -165,6 +228,7 @@ fn update(state: &mut SiloApp, message: Message) -> Task<Message> {
                         if !state.folder_paths.contains(&path) {
                             state.folder_paths.push(path.clone());
                             state.folder_sizes.push("...".to_string());
+                            state.is_populated = true;
                             // Compute the size label for the new folder.
                             return config_silo_dialog_folders::size_tasks(&[path])
                                 .pop()
@@ -178,10 +242,19 @@ fn update(state: &mut SiloApp, message: Message) -> Task<Message> {
             }
             Task::none()
         }
-        Message::FolderSizeComputed(index, size) => {
-            if let Some(slot) = state.folder_sizes.get_mut(index) {
-                *slot = size;
+        Message::FolderSizeComputed(path, size) => {
+            // Look up the folder by path: the list may have changed while the
+            // walk ran, so an index captured at task creation could point to
+            // the wrong chip.
+            if let Some(index) = state.folder_paths.iter().position(|p| p == &path) {
+                if let Some(slot) = state.folder_sizes.get_mut(index) {
+                    *slot = size;
+                }
             }
+            Task::none()
+        }
+        Message::SiloSizeComputed(label) => {
+            state.silo_size = label;
             Task::none()
         }
         Message::ChipHovered(index, hovered) => {
@@ -217,6 +290,7 @@ fn update(state: &mut SiloApp, message: Message) -> Task<Message> {
                     Ok(()) => {
                         state.folder_paths.remove(index);
                         state.folder_sizes.remove(index);
+                        state.is_populated = !state.folder_paths.is_empty();
                     }
                     Err(err) => {
                         eprintln!("silo: could not remove the folder {path:?}: {err}");
@@ -237,6 +311,51 @@ fn update(state: &mut SiloApp, message: Message) -> Task<Message> {
             state.menu_hovered = hovered;
             Task::none()
         }
+        Message::ExcludePlusHovered(hovered) => {
+            state.exclude_plus_hovered = hovered;
+            Task::none()
+        }
+        Message::ExcludePlusPressed => {
+            // Add a new empty pattern chip and persist the list.
+            state.exclude_patterns.push(String::new());
+            save_excludes(state);
+            Task::none()
+        }
+        Message::ExcludePatternChanged(index, value) => {
+            if let Some(slot) = state.exclude_patterns.get_mut(index) {
+                *slot = value;
+            }
+            save_excludes(state);
+            Task::none()
+        }
+        Message::ExcludeMenuRequested(index) => {
+            // Right-pressing the same chip again collapses the menu.
+            state.exclude_menu = if state.exclude_menu == Some(index) {
+                None
+            } else {
+                Some(index)
+            };
+            state.exclude_menu_hovered = false;
+            Task::none()
+        }
+        Message::ExcludePatternRemoved(index) => {
+            if index < state.exclude_patterns.len() {
+                state.exclude_patterns.remove(index);
+            }
+            state.exclude_menu = None;
+            state.exclude_menu_hovered = false;
+            save_excludes(state);
+            Task::none()
+        }
+        Message::CloseExcludeMenu => {
+            state.exclude_menu = None;
+            state.exclude_menu_hovered = false;
+            Task::none()
+        }
+        Message::ExcludeMenuHovered(hovered) => {
+            state.exclude_menu_hovered = hovered;
+            Task::none()
+        }
         Message::LogoPressed => {
             state.about_open = true;
             Task::none()
@@ -250,15 +369,21 @@ fn update(state: &mut SiloApp, message: Message) -> Task<Message> {
             state.chip_menu = None;
             state.hovered_chip = None;
             state.menu_hovered = false;
-            // Load the saved source folders once at open. Reloading on every
+            // Load the saved settings once at open. Reloading on every
             // redraw would read the database on each frame.
-            state.folder_paths = match config::load() {
-                Ok(settings) => settings.silo_data_paths,
+            match config::load() {
+                Ok(settings) => {
+                    state.folder_paths = settings.silo_data_paths;
+                    state.exclude_patterns = settings.excludes;
+                }
                 Err(err) => {
-                    eprintln!("silo: could not load the saved folders: {err}");
-                    Vec::new()
+                    eprintln!("silo: could not load the saved settings: {err}");
+                    state.folder_paths = Vec::new();
+                    state.exclude_patterns = Vec::new();
                 }
             };
+            // Reflect the loaded rows in the live STATUS label.
+            state.is_populated = !state.folder_paths.is_empty();
             // Show a placeholder size label per folder and compute the real
             // sizes asynchronously, so large folders do not freeze the UI.
             state.folder_sizes = vec!["...".to_string(); state.folder_paths.len()];
@@ -270,7 +395,12 @@ fn update(state: &mut SiloApp, message: Message) -> Task<Message> {
             state.hovered_chip = None;
             state.chip_menu = None;
             state.menu_hovered = false;
-            Task::none()
+            state.exclude_plus_hovered = false;
+            state.exclude_menu = None;
+            state.exclude_menu_hovered = false;
+            // The folders or exclude patterns may have changed while the
+            // dialog was open, so recompute the total size in the background.
+            silo_size_task()
         }
         Message::OpenSyncSiloDialog => {
             state.sync_dialog_open = true;
@@ -291,6 +421,13 @@ fn update(state: &mut SiloApp, message: Message) -> Task<Message> {
     }
 }
 
+/// Persist the current exclude patterns to the database.
+fn save_excludes(state: &SiloApp) {
+    if let Err(err) = config::replace_excludes(&state.exclude_patterns) {
+        eprintln!("silo: could not save the exclude patterns: {err}");
+    }
+}
+
 /// Builds the application view.
 ///
 /// The base is a full-window [`Container`] with no visible content. The theme's
@@ -304,6 +441,8 @@ fn view(state: &SiloApp) -> iced::Element<'_, Message> {
         state.logo_hovered,
         state.config_hovered,
         state.sync_hovered,
+        state.is_populated,
+        &state.silo_size,
     ));
 
     if state.about_open {
@@ -318,6 +457,10 @@ fn view(state: &SiloApp) -> iced::Element<'_, Message> {
             state.hovered_chip,
             state.chip_menu,
             state.menu_hovered,
+            state.exclude_plus_hovered,
+            &state.exclude_patterns,
+            state.exclude_menu,
+            state.exclude_menu_hovered,
         ));
     }
 

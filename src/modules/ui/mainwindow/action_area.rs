@@ -202,7 +202,7 @@ fn detail_line() -> Element<'static, Message> {
 }
 
 /// Builds a teal status label, sized for the action area.
-fn status_label(content: &'static str) -> Element<'static, Message> {
+fn status_label(content: String) -> Element<'static, Message> {
     text(content).size(sp(TEXT_SIZE)).color(TEAL).into()
 }
 
@@ -220,25 +220,33 @@ pub(super) fn separator() -> Element<'static, Message> {
         .into()
 }
 
-/// Builds the two status labels, vertically centered above the center line.
+/// Builds the status labels, vertically centered above the center line.
 ///
 /// The labels sit to the right of the logo (same left offset as the detail
 /// line) and are centered in the space between the top orange rule and the
-/// center line.
-fn status_labels() -> Element<'static, Message> {
+/// center line. `is_populated` selects the live STATUS label: "POPULATED"
+/// when the silo has at least one source folder, "NOT POPULATED" otherwise.
+/// `silo_size` is the live total size label, for example "5.46GB".
+fn status_labels(is_populated: bool, silo_size: &str) -> Element<'static, Message> {
     let region_top = TOP_GAP + LINE_THICKNESS;
     let region_bottom = band_center() - DETAIL_LINE_THICKNESS / 2.0;
     let label_top = region_top + (region_bottom - region_top - TEXT_SIZE) / 2.0;
     let left = LOGO_LEFT_GAP + LOGO_SIZE + DETAIL_GAP;
 
+    let status = if is_populated {
+        "STATUS: POPULATED"
+    } else {
+        "STATUS: NOT POPULATED"
+    };
+
     let row = Row::new()
         .align_y(iced::alignment::Vertical::Center)
         .spacing(sp(LABEL_SPACING))
-        .push(status_label("STATUS: NOT POPULATED"))
+        .push(status_label(status.to_string()))
         .push(separator())
-        .push(status_label("LAST SYNC: --/--/----"))
+        .push(status_label("LAST SYNC: --/--/----".to_string()))
         .push(separator())
-        .push(status_label("SILO SIZE: 5.46GB"));
+        .push(status_label(format!("SILO SIZE: {silo_size}")));
 
     container(row)
         .width(Length::Fill)
@@ -339,14 +347,17 @@ fn button_area(
 /// it. The logo is placed at the far left, centered between the two rules, and
 /// the detail line runs from just right of the logo to the right edge, also
 /// centered. The status labels sit above the center line, and the CONFIG
-/// button is pinned to the far right on the same band. The SYNC button sits
-/// below the center line, between it and the bottom orange rule. Everything is
-/// positioned via top/left padding so it stays above the base background and
-/// below the scanlines.
+/// button is pinned to the far right on the same band. `is_populated` and
+/// `silo_size` feed the live STATUS and SILO SIZE labels. The SYNC button
+/// sits below the center line, between it and the bottom orange rule.
+/// Everything is positioned via top/left padding so it stays above the base
+/// background and below the scanlines.
 pub fn view(
     logo_hovered: bool,
     config_hovered: bool,
     sync_hovered: bool,
+    is_populated: bool,
+    silo_size: &str,
 ) -> Element<'static, Message> {
     // The bands above and below the center line.
     let upper_top = TOP_GAP + LINE_THICKNESS;
@@ -364,7 +375,7 @@ pub fn view(
         .push(rule_at(TOP_GAP + LINE_SPACING))
         .push(logo(logo_hovered))
         .push(detail_line())
-        .push(status_labels())
+        .push(status_labels(is_populated, silo_size))
         .push(super::sync_progress_bar::view(0.25, bar_center_y, bar_left))
         .push(button_area(
             silo_button(
