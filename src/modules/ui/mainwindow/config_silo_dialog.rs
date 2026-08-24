@@ -6,8 +6,6 @@
 //! folder and exclude panel boxes; the silo settings fields are added in a
 //! later step.
 
-use std::path::PathBuf;
-
 use iced::mouse;
 use iced::widget::{Column, MouseArea, Stack, container, text};
 use iced::{Border, Color, Element, Length, Padding, Shadow, Vector};
@@ -16,6 +14,7 @@ use crate::modules::ui::scaling::{Scaling, sp};
 use crate::modules::ui::theme::{BACK, DETAIL, TEAL};
 
 use super::Message;
+use super::config_silo_actions::ConfigState;
 
 /// The width of the dialog box, in reference pixels.
 const DIALOG_WIDTH: f32 = 900.0;
@@ -62,18 +61,10 @@ const CLOSE_PAD_H: f32 = 28.0;
 
 /// Builds the Config Silo dialog overlay.
 ///
-/// `plus_hovered` reports whether the pointer is over the + button so it can
-/// show its hover color. `folder_paths` holds the selected source folders
-/// loaded at dialog open; it is passed down to the folder box for display.
-/// `folder_sizes` holds each folder's size label, parallel to `folder_paths`.
-/// `hovered_chip` is the index of the folder chip under the pointer, if any.
-/// `chip_menu` is the index of the chip whose remove menu is open, if any.
-/// `menu_hovered` reports whether the pointer is over the open remove menu.
-/// `exclude_plus_hovered` reports whether the pointer is over the + button in
-/// the exclude box. `exclude_patterns` holds the current exclude patterns,
-/// one string per pattern chip. `exclude_menu` is the index of the exclude
-/// chip whose delete menu is open, if any. `exclude_menu_hovered` reports
-/// whether the pointer is over that menu.
+/// `state` holds the dialog's rows and interaction flags: the folder chips,
+/// their size labels, the open menus, and the exclude pattern chips. The view
+/// reads the flags directly from the state group instead of taking each flag
+/// as a separate argument.
 ///
 /// Returns a full-window overlay: a dimmed backdrop that closes the dialog on
 /// press, and a dialog box holding the folder and exclude panel boxes plus
@@ -81,18 +72,7 @@ const CLOSE_PAD_H: f32 = 28.0;
 /// The box keeps the top position of a `TOP_ANCHOR_HEIGHT`-tall centered box,
 /// so the extra height extends only downward. The settings fields are added
 /// in a later step.
-pub fn view<'a>(
-    plus_hovered: bool,
-    folder_paths: &[PathBuf],
-    folder_sizes: &[String],
-    hovered_chip: Option<usize>,
-    chip_menu: Option<usize>,
-    menu_hovered: bool,
-    exclude_plus_hovered: bool,
-    exclude_patterns: &'a [String],
-    exclude_menu: Option<usize>,
-    exclude_menu_hovered: bool,
-) -> Element<'a, Message> {
+pub fn view<'a>(state: &'a ConfigState) -> Element<'a, Message> {
     // The dimmed backdrop. Pressing it closes the dialog.
     let backdrop = MouseArea::new(
         container(text(""))
@@ -119,16 +99,16 @@ pub fn view<'a>(
         .align_x(iced::alignment::Horizontal::Center)
         .spacing(sp(CONTENT_SPACING))
         .push(super::config_silo_dialog_elements::view(
-            plus_hovered,
-            folder_paths,
-            folder_sizes,
-            hovered_chip,
-            chip_menu,
-            menu_hovered,
-            exclude_plus_hovered,
-            exclude_patterns,
-            exclude_menu,
-            exclude_menu_hovered,
+            state.plus_hovered,
+            &state.folder_paths,
+            &state.folder_sizes,
+            state.hovered_chip,
+            state.chip_menu,
+            state.menu_hovered,
+            state.exclude_plus_hovered,
+            &state.exclude_patterns,
+            state.exclude_menu,
+            state.exclude_menu_hovered,
         ))
         .push(close_button());
 

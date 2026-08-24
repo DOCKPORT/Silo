@@ -25,6 +25,7 @@ use crate::modules::ui::scrollbar;
 use crate::modules::ui::theme::{DETAIL, GREY, ORANGE, TEAL};
 
 use super::Message;
+use super::config_silo_actions::ConfigMsg;
 
 /// The width of the folder chip borders, in reference pixels.
 const CHIP_BORDER_WIDTH: f32 = 3.0;
@@ -197,7 +198,7 @@ fn folder_size(path: &Path) -> Result<String, io::Error> {
 /// Builds one async task per folder to compute its size label.
 ///
 /// Each task walks its folder and maps the result to
-/// `Message::FolderSizeComputed(path, label)`. The label is matched back to
+/// `ConfigMsg::FolderSizeComputed(path, label)`. The label is matched back to
 /// its chip by path when it arrives, so list changes during the walk cannot
 /// misplace it. An unreadable folder maps to the label `N/A`.
 pub fn size_tasks(paths: &[PathBuf]) -> Vec<Task<Message>> {
@@ -208,7 +209,7 @@ pub fn size_tasks(paths: &[PathBuf]) -> Vec<Task<Message>> {
             Task::perform(
                 async move {
                     let label = folder_size(&path).unwrap_or_else(|_| "N/A".to_string());
-                    Message::FolderSizeComputed(path, label)
+                    Message::Config(ConfigMsg::FolderSizeComputed(path, label))
                 },
                 std::convert::identity,
             )
@@ -237,7 +238,7 @@ pub fn view<'a>(
 ///
 /// The row shows "Remove folder (name) from Silo". The text is grey by
 /// default and turns ORANGE while hovered. Pressing the row sends
-/// `Message::RemoveFolder`.
+/// `ConfigMsg::RemoveFolder`.
 fn remove_menu<'a>(path: &Path, index: usize, hovered: bool) -> Element<'a, Message> {
     let name = path
         .file_name()
@@ -267,9 +268,9 @@ fn remove_menu<'a>(path: &Path, index: usize, hovered: bool) -> Element<'a, Mess
     });
 
     MouseArea::new(label)
-        .on_enter(Message::MenuHovered(true))
-        .on_exit(Message::MenuHovered(false))
-        .on_press(Message::RemoveFolder(index))
+        .on_enter(Message::Config(ConfigMsg::MenuHovered(true)))
+        .on_exit(Message::Config(ConfigMsg::MenuHovered(false)))
+        .on_press(Message::Config(ConfigMsg::RemoveFolder(index)))
         .interaction(mouse::Interaction::Pointer)
         .into()
 }
@@ -304,8 +305,8 @@ fn folder_list<'a>(
     // chips' own mouse areas capture the event first, so chip actions still
     // take priority over this area.
     MouseArea::new(scrollbar::vertical(column))
-        .on_press(Message::CloseChipMenu)
-        .on_right_press(Message::CloseChipMenu)
+        .on_press(Message::Config(ConfigMsg::CloseChipMenu))
+        .on_right_press(Message::Config(ConfigMsg::CloseChipMenu))
         .into()
 }
 
@@ -355,10 +356,10 @@ fn folder_chip<'a>(path: &Path, index: usize, hovered: bool, size: &str) -> Elem
         });
 
     MouseArea::new(chip)
-        .on_enter(Message::ChipHovered(index, true))
-        .on_exit(Message::ChipHovered(index, false))
-        .on_press(Message::ChipPressed(path.to_path_buf()))
-        .on_right_press(Message::ChipMenuRequested(index))
+        .on_enter(Message::Config(ConfigMsg::ChipHovered(index, true)))
+        .on_exit(Message::Config(ConfigMsg::ChipHovered(index, false)))
+        .on_press(Message::Config(ConfigMsg::ChipPressed(path.to_path_buf())))
+        .on_right_press(Message::Config(ConfigMsg::ChipMenuRequested(index)))
         .interaction(mouse::Interaction::Pointer)
         .into()
 }

@@ -17,6 +17,7 @@ use crate::modules::ui::scaling::sp;
 use crate::modules::ui::theme::GREY;
 
 use super::Message;
+use super::config_silo_actions::ConfigMsg;
 
 /// The width of the box borders, in reference pixels.
 const BOX_BORDER_WIDTH: f32 = 1.0;
@@ -113,9 +114,9 @@ fn folder_box<'a>(
         .push(Space::new().width(Length::Fill))
         .push(plus_button(
             plus_hovered,
-            Message::PlusHovered(true),
-            Message::PlusHovered(false),
-            Message::PlusPressed,
+            Message::Config(ConfigMsg::PlusHovered(true)),
+            Message::Config(ConfigMsg::PlusHovered(false)),
+            Message::Config(ConfigMsg::PlusPressed),
         ))
         .into();
 
@@ -149,9 +150,9 @@ fn exclude_box<'a>(
         .push(Space::new().width(Length::Fill))
         .push(plus_button(
             exclude_plus_hovered,
-            Message::ExcludePlusHovered(true),
-            Message::ExcludePlusHovered(false),
-            Message::ExcludePlusPressed,
+            Message::Config(ConfigMsg::ExcludePlusHovered(true)),
+            Message::Config(ConfigMsg::ExcludePlusHovered(false)),
+            Message::Config(ConfigMsg::ExcludePlusPressed),
         ))
         .into();
 

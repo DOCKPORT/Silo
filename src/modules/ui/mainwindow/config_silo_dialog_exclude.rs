@@ -16,6 +16,7 @@ use crate::modules::ui::scrollbar;
 use crate::modules::ui::theme::{BACK, DETAIL, GREY, ORANGE, TEAL};
 
 use super::Message;
+use super::config_silo_actions::ConfigMsg;
 
 /// The width of the pattern chip borders, in reference pixels.
 const CHIP_BORDER_WIDTH: f32 = 1.0;
@@ -60,8 +61,8 @@ pub fn view<'a>(
     // chips' own mouse areas capture the event first, so chip actions take
     // priority over this area.
     MouseArea::new(scrollbar::vertical(column))
-        .on_press(Message::CloseExcludeMenu)
-        .on_right_press(Message::CloseExcludeMenu)
+        .on_press(Message::Config(ConfigMsg::CloseExcludeMenu))
+        .on_right_press(Message::Config(ConfigMsg::CloseExcludeMenu))
         .into()
 }
 
@@ -69,7 +70,7 @@ pub fn view<'a>(
 /// Right-pressing the chip opens its delete menu.
 fn pattern_chip<'a>(pattern: &'a str, index: usize) -> Element<'a, Message> {
     let input = TextInput::new("", pattern)
-        .on_input(move |value| Message::ExcludePatternChanged(index, value))
+        .on_input(move |value| Message::Config(ConfigMsg::ExcludePatternChanged(index, value)))
         .padding(sp(INPUT_PAD))
         .style(|_theme: &Theme, _status: Status| text_input::Style {
             background: Background::Color(BACK),
@@ -99,7 +100,7 @@ fn pattern_chip<'a>(pattern: &'a str, index: usize) -> Element<'a, Message> {
         });
 
     MouseArea::new(chip)
-        .on_right_press(Message::ExcludeMenuRequested(index))
+        .on_right_press(Message::Config(ConfigMsg::ExcludeMenuRequested(index)))
         .into()
 }
 
@@ -107,7 +108,7 @@ fn pattern_chip<'a>(pattern: &'a str, index: usize) -> Element<'a, Message> {
 ///
 /// The row shows "Remove {pattern}", or "Remove" for an empty pattern. The
 /// text is grey by default and turns ORANGE while hovered. Pressing the row
-/// sends `Message::ExcludePatternRemoved`.
+/// sends `ConfigMsg::ExcludePatternRemoved`.
 fn delete_menu(pattern: &str, index: usize, hovered: bool) -> Element<'static, Message> {
     let label_text = if pattern.is_empty() {
         "Remove".to_string()
@@ -138,9 +139,9 @@ fn delete_menu(pattern: &str, index: usize, hovered: bool) -> Element<'static, M
     });
 
     MouseArea::new(label)
-        .on_enter(Message::ExcludeMenuHovered(true))
-        .on_exit(Message::ExcludeMenuHovered(false))
-        .on_press(Message::ExcludePatternRemoved(index))
+        .on_enter(Message::Config(ConfigMsg::ExcludeMenuHovered(true)))
+        .on_exit(Message::Config(ConfigMsg::ExcludeMenuHovered(false)))
+        .on_press(Message::Config(ConfigMsg::ExcludePatternRemoved(index)))
         .interaction(mouse::Interaction::Pointer)
         .into()
 }

@@ -20,7 +20,9 @@ use crate::modules::ui::scaling::sp;
 use crate::modules::ui::scrollbar;
 use crate::modules::ui::theme::{DETAIL, GREY, ORANGE, TEAL};
 
-use super::{Message, StatusKind, StatusLine};
+use super::Message;
+use super::status_format::{StatusKind, StatusLine};
+use super::sync_silo_actions::SyncMsg;
 
 /// The width of the box borders, in reference pixels.
 const BOX_BORDER_WIDTH: f32 = 1.0;
@@ -140,9 +142,9 @@ fn destination_box<'a>(
         .push(Space::new().width(Length::Fill))
         .push(plus_button(
             dest_plus_hovered,
-            Message::DestPlusHovered(true),
-            Message::DestPlusHovered(false),
-            Message::DestPlusPressed,
+            Message::Sync(SyncMsg::DestPlusHovered(true)),
+            Message::Sync(SyncMsg::DestPlusHovered(false)),
+            Message::Sync(SyncMsg::DestPlusPressed),
         ))
         .into();
 
@@ -160,8 +162,8 @@ fn destination_box<'a>(
     // chip's own mouse area captures the event first, so chip actions still
     // take priority over this area.
     let body = MouseArea::new(body)
-        .on_press(Message::CloseDestMenu)
-        .on_right_press(Message::CloseDestMenu);
+        .on_press(Message::Sync(SyncMsg::CloseDestMenu))
+        .on_right_press(Message::Sync(SyncMsg::CloseDestMenu));
 
     let content = Column::new()
         .width(Length::Fill)
@@ -241,10 +243,10 @@ fn destination_chip(path: &Path, hovered: bool) -> Element<'static, Message> {
         });
 
     MouseArea::new(chip)
-        .on_enter(Message::DestChipHovered(true))
-        .on_exit(Message::DestChipHovered(false))
-        .on_press(Message::DestChipPressed)
-        .on_right_press(Message::DestChipMenuRequested)
+        .on_enter(Message::Sync(SyncMsg::DestChipHovered(true)))
+        .on_exit(Message::Sync(SyncMsg::DestChipHovered(false)))
+        .on_press(Message::Sync(SyncMsg::DestChipPressed))
+        .on_right_press(Message::Sync(SyncMsg::DestChipMenuRequested))
         .interaction(mouse::Interaction::Pointer)
         .into()
 }
@@ -253,7 +255,7 @@ fn destination_chip(path: &Path, hovered: bool) -> Element<'static, Message> {
 ///
 /// The row shows "Remove destination (name) from Silo". The text is grey by
 /// default and turns ORANGE while hovered. Pressing the row sends
-/// `Message::RemoveDestPath`.
+/// `SyncMsg::RemoveDestPath`.
 fn remove_menu<'a>(path: &Path, hovered: bool) -> Element<'a, Message> {
     let name = path
         .file_name()
@@ -283,9 +285,9 @@ fn remove_menu<'a>(path: &Path, hovered: bool) -> Element<'a, Message> {
     });
 
     MouseArea::new(label)
-        .on_enter(Message::DestMenuHovered(true))
-        .on_exit(Message::DestMenuHovered(false))
-        .on_press(Message::RemoveDestPath)
+        .on_enter(Message::Sync(SyncMsg::DestMenuHovered(true)))
+        .on_exit(Message::Sync(SyncMsg::DestMenuHovered(false)))
+        .on_press(Message::Sync(SyncMsg::RemoveDestPath))
         .interaction(mouse::Interaction::Pointer)
         .into()
 }
@@ -335,16 +337,16 @@ fn run_buttons(dry_run_hovered: bool, sync_run_hovered: bool) -> Element<'static
         .push(super::action_area::silo_button(
             "DRY-RUN",
             dry_run_hovered,
-            Message::DryRunPressed,
-            Message::DryRunHovered(true),
-            Message::DryRunHovered(false),
+            Message::Sync(SyncMsg::DryRunPressed),
+            Message::Sync(SyncMsg::DryRunHovered(true)),
+            Message::Sync(SyncMsg::DryRunHovered(false)),
         ))
         .push(super::action_area::silo_button(
             "SYNC",
             sync_run_hovered,
-            Message::SyncRunPressed,
-            Message::SyncRunHovered(true),
-            Message::SyncRunHovered(false),
+            Message::Sync(SyncMsg::SyncRunPressed),
+            Message::Sync(SyncMsg::SyncRunHovered(true)),
+            Message::Sync(SyncMsg::SyncRunHovered(false)),
         ));
 
     container(row)

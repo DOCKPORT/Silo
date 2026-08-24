@@ -6,8 +6,6 @@
 //! sync settings elements; the destination, source folders, and excludes
 //! panels are added in a later step.
 
-use std::path::Path;
-
 use iced::mouse;
 use iced::widget::{Column, MouseArea, Stack, container, text};
 use iced::{Border, Color, Element, Length, Padding, Shadow, Vector};
@@ -15,7 +13,8 @@ use iced::{Border, Color, Element, Length, Padding, Shadow, Vector};
 use crate::modules::ui::scaling::{Scaling, sp};
 use crate::modules::ui::theme::{BACK, DETAIL, TEAL};
 
-use super::{Message, StatusLine};
+use super::Message;
+use super::sync_silo_actions::SyncState;
 
 /// The width of the dialog box, in reference pixels.
 const DIALOG_WIDTH: f32 = 900.0;
@@ -62,14 +61,10 @@ const CLOSE_PAD_H: f32 = 28.0;
 
 /// Builds the Sync Silo dialog overlay.
 ///
-/// `dest_path` is the saved rsync destination, or `None` before one is picked.
-/// `dest_plus_hovered` reports whether the pointer is over the + button in the
-/// destination box. `dest_chip_hovered` reports whether the pointer is over
-/// the destination chip. `dest_menu_open` reports whether the remove menu is
-/// open. `dest_menu_hovered` reports whether the pointer is over that menu.
-/// `dry_run_hovered` reports whether the pointer is over the DRY-RUN button.
-/// `sync_run_hovered` reports whether the pointer is over the SYNC button.
-/// `status` holds the lines shown in the STATUS box.
+/// `state` holds the dialog's rows and interaction flags: the saved
+/// destination, the open remove menu, the DRY-RUN and SYNC button hovers, and
+/// the STATUS box lines. The view reads the flags directly from the state
+/// group instead of taking each flag as a separate argument.
 ///
 /// Returns a full-window overlay: a dimmed backdrop that closes the dialog on
 /// press, and a dialog box holding the sync settings elements and the CLOSE
@@ -77,16 +72,7 @@ const CLOSE_PAD_H: f32 = 28.0;
 /// the top position of a `TOP_ANCHOR_HEIGHT`-tall centered box, so the extra
 /// height extends only downward. The source folders and excludes panels are
 /// added in a later step.
-pub fn view<'a>(
-    dest_path: Option<&'a Path>,
-    dest_plus_hovered: bool,
-    dest_chip_hovered: bool,
-    dest_menu_open: bool,
-    dest_menu_hovered: bool,
-    dry_run_hovered: bool,
-    sync_run_hovered: bool,
-    status: &'a [StatusLine],
-) -> Element<'a, Message> {
+pub fn view<'a>(state: &'a SyncState) -> Element<'a, Message> {
     // The dimmed backdrop. Pressing it closes the dialog.
     let backdrop = MouseArea::new(
         container(text(""))
@@ -113,14 +99,14 @@ pub fn view<'a>(
         .align_x(iced::alignment::Horizontal::Center)
         .spacing(sp(CONTENT_SPACING))
         .push(super::sync_silo_dialog_elements::view(
-            dest_path,
-            dest_plus_hovered,
-            dest_chip_hovered,
-            dest_menu_open,
-            dest_menu_hovered,
-            dry_run_hovered,
-            sync_run_hovered,
-            status,
+            state.rsync_dest_path.as_deref(),
+            state.dest_plus_hovered,
+            state.dest_chip_hovered,
+            state.dest_menu_open,
+            state.dest_menu_hovered,
+            state.dry_run_hovered,
+            state.sync_run_hovered,
+            &state.sync_status,
         ))
         .push(close_button());
 
