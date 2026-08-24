@@ -238,18 +238,22 @@ fn status_labels(is_populated: bool, silo_size: &str) -> Element<'static, Messag
 ///
 /// An outlined rectangle with no fill, a `DETAIL` border, and teal text. When
 /// `hovered` is true, the border switches to `ORANGE` and the pointer cursor
-/// is shown. Pressing emits `on_press`; hovering emits `on_enter`/`on_exit`.
-/// The caller supplies the messages so every button shares one implementation
-/// while staying wired to its own state.
+/// is shown. When `enabled` is false, the button keeps its normal look and
+/// ignores presses, but it still tracks hover so the flag stays accurate
+/// when the button is enabled again. Pressing emits `on_press`; hovering
+/// emits `on_enter`/`on_exit`. The caller supplies the messages so every
+/// button shares one implementation while staying wired to its own state.
 pub(crate) fn silo_button(
     label: &'static str,
     hovered: bool,
+    enabled: bool,
     on_press: Message,
     on_enter: Message,
     on_exit: Message,
 ) -> Element<'static, Message> {
-    // The accent color: teal-blue border normally, orange on hover.
-    let accent = if hovered { ORANGE } else { DETAIL };
+    // The accent color: teal-blue border normally, orange on hover. A busy
+    // button keeps its normal look but does not hover or respond.
+    let accent = if enabled && hovered { ORANGE } else { DETAIL };
 
     let button = container(text(label).size(sp(BUTTON_TEXT_SIZE)).color(TEAL))
         .width(Length::Fixed(sp(BUTTON_WIDTH)))
@@ -272,12 +276,13 @@ pub(crate) fn silo_button(
             ..container::Style::default()
         });
 
-    MouseArea::new(button)
-        .on_press(on_press)
-        .on_enter(on_enter)
-        .on_exit(on_exit)
-        .interaction(mouse::Interaction::Pointer)
-        .into()
+    let mut area = MouseArea::new(button).on_enter(on_enter).on_exit(on_exit);
+    if enabled {
+        area = area
+            .on_press(on_press)
+            .interaction(mouse::Interaction::Pointer);
+    }
+    area.into()
 }
 
 /// Builds the CONFIG. SILO and SYNC SILO buttons in one centered row.
@@ -294,6 +299,7 @@ fn action_buttons(config_hovered: bool, sync_hovered: bool) -> Element<'static, 
         .push(silo_button(
             "CONFIG. SILO",
             config_hovered,
+            true,
             Message::OpenConfigSiloDialog,
             Message::ConfigHovered(true),
             Message::ConfigHovered(false),
@@ -301,6 +307,7 @@ fn action_buttons(config_hovered: bool, sync_hovered: bool) -> Element<'static, 
         .push(silo_button(
             "SYNC SILO",
             sync_hovered,
+            true,
             Message::OpenSyncSiloDialog,
             Message::SyncHovered(true),
             Message::SyncHovered(false),

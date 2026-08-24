@@ -109,6 +109,7 @@ pub fn view<'a>(state: &'a SyncState) -> Element<'a, Message> {
             state.sync_run_hovered,
             &state.sync_status,
             state.sync_progress.as_ref(),
+            state.active_runs > 0,
         ))
         .push(button_row(state));
 
@@ -243,7 +244,8 @@ fn button_row(state: &SyncState) -> Element<'static, Message> {
 ///
 /// The text is teal and the border DETAIL by default; the border turns ORANGE
 /// while the pointer hovers. When `enabled` is false, the button keeps its
-/// normal look but does not hover or respond.
+/// normal look and ignores presses, but it still tracks hover so the flag
+/// stays accurate when the button is enabled again.
 fn dialog_button(
     label: &'static str,
     hovered: bool,
@@ -274,12 +276,10 @@ fn dialog_button(
             ..container::Style::default()
         });
 
-    let mut area = MouseArea::new(label);
+    let mut area = MouseArea::new(label).on_enter(on_enter).on_exit(on_exit);
     if enabled {
         area = area
             .on_press(on_press)
-            .on_enter(on_enter)
-            .on_exit(on_exit)
             .interaction(mouse::Interaction::Pointer);
     }
     area.into()

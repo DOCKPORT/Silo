@@ -97,8 +97,9 @@ const FOLDER_ICON_BYTES: &[u8] = include_bytes!(concat!(
 /// DRY-RUN button. `sync_run_hovered` reports whether the pointer is over the
 /// SYNC button. `status` holds the lines shown in the STATUS box. `progress`
 /// is the live sync progress shown at the top of the STATUS box, or `None`
-/// when no sync is running. The source folders and excludes panels are added
-/// in later steps.
+/// when no sync is running. `busy` is true while a dry run or sync runs and
+/// disables the DRY-RUN and SYNC buttons. The source folders and excludes
+/// panels are added in later steps.
 pub fn view<'a>(
     dest_path: Option<&'a Path>,
     dest_plus_hovered: bool,
@@ -109,6 +110,7 @@ pub fn view<'a>(
     sync_run_hovered: bool,
     status: &'a [StatusLine],
     progress: Option<&SyncProgress>,
+    busy: bool,
 ) -> Element<'a, Message> {
     Column::new()
         .width(Length::Fill)
@@ -121,7 +123,7 @@ pub fn view<'a>(
             dest_menu_open,
             dest_menu_hovered,
         ))
-        .push(run_buttons(dry_run_hovered, sync_run_hovered))
+        .push(run_buttons(dry_run_hovered, sync_run_hovered, busy))
         .push(status_box(status, progress))
         .into()
 }
@@ -335,12 +337,19 @@ fn plus_button(
 
 /// Builds the DRY-RUN and SYNC buttons side by side, centered under the
 /// destination box. Both reuse the shared `action_area::silo_button` look.
-fn run_buttons(dry_run_hovered: bool, sync_run_hovered: bool) -> Element<'static, Message> {
+/// While `busy` is true (a dry run or sync runs), both buttons are disabled
+/// so no duplicate process can start.
+fn run_buttons(
+    dry_run_hovered: bool,
+    sync_run_hovered: bool,
+    busy: bool,
+) -> Element<'static, Message> {
     let row = Row::new()
         .spacing(sp(BUTTON_SPACING))
         .push(super::action_area::silo_button(
             "DRY-RUN",
             dry_run_hovered,
+            !busy,
             Message::Sync(SyncMsg::DryRunPressed),
             Message::Sync(SyncMsg::DryRunHovered(true)),
             Message::Sync(SyncMsg::DryRunHovered(false)),
@@ -348,6 +357,7 @@ fn run_buttons(dry_run_hovered: bool, sync_run_hovered: bool) -> Element<'static
         .push(super::action_area::silo_button(
             "SYNC",
             sync_run_hovered,
+            !busy,
             Message::Sync(SyncMsg::SyncRunPressed),
             Message::Sync(SyncMsg::SyncRunHovered(true)),
             Message::Sync(SyncMsg::SyncRunHovered(false)),

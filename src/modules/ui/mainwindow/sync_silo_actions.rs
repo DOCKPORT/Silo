@@ -210,6 +210,10 @@ pub(super) fn update(state: &mut SiloApp, message: SyncMsg) -> Task<Message> {
         }
         SyncMsg::DryRunHovered(hovered) => set_hovered(&mut state.sync.dry_run_hovered, hovered),
         SyncMsg::DryRunPressed => {
+            // No duplicate processes: ignore the press while any run is active.
+            if state.sync.active_runs > 0 {
+                return Task::none();
+            }
             state.sync.sync_status.push(StatusLine {
                 kind: StatusKind::Info,
                 text: "Dry run in progress...".to_string(),
@@ -246,6 +250,10 @@ pub(super) fn update(state: &mut SiloApp, message: SyncMsg) -> Task<Message> {
         }
         SyncMsg::SyncRunHovered(hovered) => set_hovered(&mut state.sync.sync_run_hovered, hovered),
         SyncMsg::SyncRunPressed => {
+            // No duplicate processes: ignore the press while any run is active.
+            if state.sync.active_runs > 0 {
+                return Task::none();
+            }
             state.sync.sync_status.push(StatusLine {
                 kind: StatusKind::Info,
                 text: "Preparing sync...".to_string(),
