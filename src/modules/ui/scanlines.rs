@@ -22,7 +22,7 @@ const fn rgb8(r: u8, g: u8, b: u8) -> Color {
 const TINT_GREEN: Color = rgb8(0x35, 0xe2, 0x58);
 
 /// The opacity of the green tint, kept low for a subtle effect.
-const TINT_ALPHA: f32 = 0.04;
+const TINT_ALPHA: f32 = 0.045;
 
 /// The vertical distance between scanlines, in pixels.
 const SCANLINE_SPACING: f32 = 3.0;

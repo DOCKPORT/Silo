@@ -44,6 +44,8 @@ pub struct SiloApp {
     sync_hovered: bool,
     /// Whether the About dialog is currently open.
     about_open: bool,
+    /// Whether the pointer is currently over the About dialog CLOSE button.
+    about_close_hovered: bool,
     /// Whether the Config Silo dialog is currently open.
     config_dialog_open: bool,
     /// Whether the Sync Silo dialog is currently open.
@@ -78,6 +80,8 @@ enum Message {
     LogoPressed,
     /// Closes the About dialog.
     CloseAboutDialog,
+    /// The pointer entered or left the About dialog CLOSE button.
+    AboutCloseHovered(bool),
     /// The CONFIG. SILO button was pressed; opens the Config dialog.
     OpenConfigSiloDialog,
     /// Closes the Config Silo dialog.
@@ -122,6 +126,7 @@ fn update(state: &mut SiloApp, message: Message) -> Task<Message> {
             state.about_open = false;
             Task::none()
         }
+        Message::AboutCloseHovered(hovered) => set_hovered(&mut state.about_close_hovered, hovered),
         Message::OpenConfigSiloDialog => {
             state.config_dialog_open = true;
             config_silo_actions::open(state)
@@ -181,7 +186,7 @@ fn view(state: &SiloApp) -> iced::Element<'_, Message> {
     ));
 
     if state.about_open {
-        stack = stack.push(about_dialog::view());
+        stack = stack.push(about_dialog::view(state.about_close_hovered));
     }
 
     if state.config_dialog_open {

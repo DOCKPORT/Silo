@@ -7,7 +7,7 @@
 //! composed into the main window through the action area's [`Stack`].
 
 use iced::widget::{Row, Stack, container, text};
-use iced::{Color, Element, Length, Padding, Shadow, Vector};
+use iced::{Element, Length, Padding};
 
 use crate::modules::ui::scaling::sp;
 use crate::modules::ui::theme::{DETAIL, TEAL};
@@ -27,12 +27,6 @@ const TEXT_SIZE: f32 = 30.0;
 /// Matches the status label row above (action area's `LABEL_SPACING`).
 const LABEL_SPACING: f32 = 60.0;
 
-/// The alpha of the fill glow, giving a subtle halo rather than a hard shadow.
-const FILL_GLOW_ALPHA: f32 = 0.5;
-
-/// The blur radius of the fill glow, in reference pixels.
-const FILL_GLOW_BLUR: f32 = 6.0;
-
 /// Builds the sync progress bar.
 ///
 /// `progress` is the fraction of the bar that is filled, clamped to
@@ -51,20 +45,12 @@ pub fn view(progress: f32, center_y: f32, left: f32) -> Element<'static, Message
             ..container::Style::default()
         });
 
-    // The fill: a bright teal portion showing the sync progress, with glow.
+    // The fill: a bright teal portion showing the sync progress.
     let fill = container(text(""))
         .width(Length::Fixed(sp(BAR_WIDTH * progress)))
         .height(Length::Fixed(sp(BAR_HEIGHT)))
         .style(|_| container::Style {
             background: Some(TEAL.into()),
-            shadow: Shadow {
-                color: Color {
-                    a: FILL_GLOW_ALPHA,
-                    ..TEAL
-                },
-                offset: Vector::ZERO,
-                blur_radius: sp(FILL_GLOW_BLUR),
-            },
             ..container::Style::default()
         });
 

@@ -25,6 +25,8 @@ pub(super) struct SyncState {
     /// Whether the pointer is currently over the + button in the destination
     /// box.
     pub(super) dest_plus_hovered: bool,
+    /// Whether the pointer is currently over the dialog CLOSE button.
+    pub(super) close_hovered: bool,
     /// Whether the pointer is currently over the destination chip.
     pub(super) dest_chip_hovered: bool,
     /// Whether the destination remove menu is open.
@@ -43,6 +45,7 @@ impl SyncState {
     /// Resets the dialog interaction flags.
     pub(super) fn reset(&mut self) {
         self.dest_plus_hovered = false;
+        self.close_hovered = false;
         self.dest_chip_hovered = false;
         self.dest_menu_open = false;
         self.dest_menu_hovered = false;
@@ -56,6 +59,8 @@ impl SyncState {
 pub(super) enum SyncMsg {
     /// The pointer entered or left the + button in the destination box.
     DestPlusHovered(bool),
+    /// The pointer entered or left the dialog CLOSE button.
+    CloseHovered(bool),
     /// The + button in the destination box was pressed; opens the OS native
     /// folder picker.
     DestPlusPressed,
@@ -115,6 +120,7 @@ pub(super) fn update(state: &mut SiloApp, message: SyncMsg) -> Task<Message> {
         SyncMsg::DestPlusHovered(hovered) => {
             set_hovered(&mut state.sync.dest_plus_hovered, hovered)
         }
+        SyncMsg::CloseHovered(hovered) => set_hovered(&mut state.sync.close_hovered, hovered),
         SyncMsg::DestPlusPressed => {
             // Open the OS native folder picker. The picked folder arrives as
             // `SyncMsg::DestFolderPicked`.

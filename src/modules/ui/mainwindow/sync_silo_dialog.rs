@@ -8,13 +8,14 @@
 
 use iced::mouse;
 use iced::widget::{Column, MouseArea, Stack, container, text};
-use iced::{Border, Color, Element, Length, Padding, Shadow, Vector};
+use iced::{Border, Color, Element, Length, Padding};
 
+use crate::modules::ui::crosshatch;
 use crate::modules::ui::scaling::{Scaling, sp};
-use crate::modules::ui::theme::{BACK, DETAIL, TEAL};
+use crate::modules::ui::theme::{BACK, DETAIL, ORANGE, TEAL};
 
 use super::Message;
-use super::sync_silo_actions::SyncState;
+use super::sync_silo_actions::{SyncMsg, SyncState};
 
 /// The width of the dialog box, in reference pixels.
 const DIALOG_WIDTH: f32 = 900.0;
@@ -108,7 +109,7 @@ pub fn view<'a>(state: &'a SyncState) -> Element<'a, Message> {
             state.sync_run_hovered,
             &state.sync_status,
         ))
-        .push(close_button());
+        .push(close_button(state.close_hovered));
 
     let dialog_box = container(content)
         .width(Length::Fixed(sp(DIALOG_WIDTH)))
@@ -127,11 +128,6 @@ pub fn view<'a>(state: &'a SyncState) -> Element<'a, Message> {
                 color: DETAIL,
                 width: sp(BORDER_WIDTH),
                 radius: 0.0.into(),
-            },
-            shadow: Shadow {
-                color: Color { a: 0.5, ..DETAIL },
-                offset: Vector::ZERO,
-                blur_radius: sp(12.0),
             },
             ..container::Style::default()
         });
@@ -180,6 +176,7 @@ pub fn view<'a>(state: &'a SyncState) -> Element<'a, Message> {
 
     Stack::new()
         .push(backdrop)
+        .push(crosshatch::overlay())
         .push(
             container(box_area)
                 .width(Length::Fill)
@@ -197,7 +194,10 @@ pub fn view<'a>(state: &'a SyncState) -> Element<'a, Message> {
 }
 
 /// Builds the CLOSE button that closes the dialog.
-fn close_button() -> Element<'static, Message> {
+///
+/// The border is teal by default and turns ORANGE while the pointer hovers
+/// over the button.
+fn close_button(hovered: bool) -> Element<'static, Message> {
     let label = container(text("CLOSE").size(sp(TEXT_SIZE)).color(TEAL))
         .height(Length::Fixed(sp(CLOSE_HEIGHT)))
         .align_x(iced::alignment::Horizontal::Center)
@@ -208,10 +208,10 @@ fn close_button() -> Element<'static, Message> {
             top: 0.0,
             bottom: 0.0,
         })
-        .style(|_| container::Style {
+        .style(move |_| container::Style {
             background: None,
             border: Border {
-                color: DETAIL,
+                color: if hovered { ORANGE } else { DETAIL },
                 width: sp(BORDER_WIDTH),
                 radius: 0.0.into(),
             },
@@ -220,6 +220,8 @@ fn close_button() -> Element<'static, Message> {
 
     MouseArea::new(label)
         .on_press(Message::CloseSyncSiloDialog)
+        .on_enter(Message::Sync(SyncMsg::CloseHovered(true)))
+        .on_exit(Message::Sync(SyncMsg::CloseHovered(false)))
         .interaction(mouse::Interaction::Pointer)
         .into()
 }

@@ -7,7 +7,7 @@
 
 use iced::mouse;
 use iced::widget::{MouseArea, Row, Stack, container, svg, text};
-use iced::{Border, Color, Element, Length, Padding, Shadow, Vector};
+use iced::{Border, Element, Length, Padding};
 
 use crate::modules::ui::scaling::sp;
 use crate::modules::ui::theme::{DETAIL, ORANGE, TEAL};
@@ -32,12 +32,6 @@ const TOP_GAP: f32 = 30.0;
 
 /// The vertical distance between the top of the first rule and the second.
 const LINE_SPACING: f32 = 200.0;
-
-/// The soft blur radius of the glow, in reference pixels.
-const GLOW_BLUR: f32 = 10.0;
-
-/// The alpha of the glow color, giving a subtle halo rather than a hard shadow.
-const GLOW_ALPHA: f32 = 0.95;
 
 /// The rendered size of the square logo, in reference pixels.
 const LOGO_SIZE: f32 = 200.0;
@@ -86,26 +80,15 @@ fn band_center() -> f32 {
 
 /// Builds a single orange rule, the single source of truth for the line look.
 ///
-/// Returns a full-width, orange bar with the shared glow styling. Its
-/// thickness and glow are scaled through [`sp`] so they stay consistent across
-/// window sizes. Call this once per line; any change to the line's look is
-/// made here.
+/// Returns a full-width, orange bar. Its thickness is scaled through [`sp`]
+/// so it stays consistent across window sizes. Call this once per line; any
+/// change to the line's look is made here.
 fn rule() -> Element<'static, Message> {
     container(text(""))
         .width(Length::Fill)
         .height(sp(LINE_THICKNESS))
         .style(|_| container::Style {
             background: Some(ORANGE.into()),
-            shadow: Shadow {
-                color: Color {
-                    r: 1.0,
-                    g: 0xBF as f32 / 255.0,
-                    b: 0.0,
-                    a: GLOW_ALPHA,
-                },
-                offset: Vector::ZERO,
-                blur_radius: sp(GLOW_BLUR),
-            },
             ..container::Style::default()
         })
         .into()
@@ -172,14 +155,6 @@ fn detail_line() -> Element<'static, Message> {
         .height(sp(DETAIL_LINE_THICKNESS))
         .style(|_| container::Style {
             background: Some(DETAIL.into()),
-            shadow: Shadow {
-                color: Color {
-                    a: GLOW_ALPHA,
-                    ..DETAIL
-                },
-                offset: Vector::ZERO,
-                blur_radius: sp(GLOW_BLUR),
-            },
             ..container::Style::default()
         });
 
