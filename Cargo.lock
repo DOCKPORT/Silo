@@ -3457,6 +3457,7 @@ name = "silo"
 version = "0.1.0"
 dependencies = [
  "iced",
+ "resvg",
  "rfd",
  "rusqlite",
  "serde",

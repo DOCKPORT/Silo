@@ -8,6 +8,7 @@
 mod about_dialog;
 mod action_area;
 mod app;
+mod app_icon;
 mod config_silo_actions;
 mod config_silo_dialog;
 mod config_silo_dialog_elements;

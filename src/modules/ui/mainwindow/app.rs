@@ -11,6 +11,7 @@ use iced::{Subscription, Task, application};
 
 use crate::modules::{config, silo_size};
 
+use super::app_icon;
 use super::{Message, SiloApp, update, view};
 use crate::modules::ui::font;
 use crate::modules::ui::scaling::Scaling;
@@ -104,6 +105,7 @@ pub fn run() -> iced::Result {
         size: screen_size,
         position: Position::Centered,
         maximized: true,
+        icon: app_icon::load_app_icon(),
         ..iced::window::Settings::default()
     };
 
