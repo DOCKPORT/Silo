@@ -543,19 +543,16 @@ fn update(state: &mut SiloApp, message: Message) -> Task<Message> {
                 return Task::none();
             };
 
-            Task::perform(
-                async move { sync_engine::dry_run(&plan) },
-                |result| {
-                    let lines = match result {
-                        Ok(outcome) => dry_run_result_lines(outcome),
-                        Err(err) => vec![StatusLine {
-                            kind: StatusKind::Error,
-                            text: format!("Dry run failed: {err}"),
-                        }],
-                    };
-                    Message::DryRunFinished(lines)
-                },
-            )
+            Task::perform(async move { sync_engine::dry_run(&plan) }, |result| {
+                let lines = match result {
+                    Ok(outcome) => dry_run_result_lines(outcome),
+                    Err(err) => vec![StatusLine {
+                        kind: StatusKind::Error,
+                        text: format!("Dry run failed: {err}"),
+                    }],
+                };
+                Message::DryRunFinished(lines)
+            })
         }
         Message::DryRunFinished(lines) => {
             state.sync_status.extend(lines);
@@ -587,10 +584,9 @@ fn update(state: &mut SiloApp, message: Message) -> Task<Message> {
                 kind: StatusKind::Info,
                 text: "Sync in progress...".to_string(),
             });
-            Task::perform(
-                async move { sync_engine::sync(&plan) },
-                |result| Message::SyncFinished(sync_result_lines(result)),
-            )
+            Task::perform(async move { sync_engine::sync(&plan) }, |result| {
+                Message::SyncFinished(sync_result_lines(result))
+            })
         }
         Message::SyncFinished(lines) => {
             state.sync_status.extend(lines);
@@ -817,7 +813,9 @@ fn sync_result_lines(
             append_sync_stderr(&mut lines, &stderr);
             lines
         }
-        Ok(sync_engine::SyncOutcome::Failure { exit_code, stderr, .. }) => {
+        Ok(sync_engine::SyncOutcome::Failure {
+            exit_code, stderr, ..
+        }) => {
             let reason = match exit_code {
                 Some(code) => format!("Sync failed: rsync exited with code {code}"),
                 None => "Sync failed: rsync did not exit cleanly".to_string(),

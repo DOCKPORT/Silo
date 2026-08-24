@@ -36,4 +36,3 @@ pub fn dry_run(plan: &SyncPlan) -> Result<DryRunOutcome, SyncError> {
         stderr: String::from_utf8_lossy(&output.stderr).into_owned(),
     })
 }
-
