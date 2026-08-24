@@ -34,8 +34,12 @@ pub(crate) fn sync(plan: &SyncPlan) -> Result<SyncOutcome, SyncError> {
     })
 }
 
-/// Validate the plan before spawning rsync. Fails fast on any problem.
-fn validate(plan: &SyncPlan) -> Result<(), SyncError> {
+/// Validate the plan before running rsync. Fails fast on any problem.
+///
+/// Shared by the real sync and the dry run, so both reject the same invalid
+/// plans: a missing binary, an empty source list, a missing source, or a
+/// destination that does not exist or is not a directory.
+pub(crate) fn validate(plan: &SyncPlan) -> Result<(), SyncError> {
     // The binary must be findable. Defaults to "rsync" in PATH.
     if !find_binary(&plan.binary) {
         return Err(SyncError::RsyncNotFound);

@@ -15,7 +15,7 @@ use iced::{Border, Color, Element, Length, Padding, Shadow, Vector};
 use crate::modules::ui::scaling::{Scaling, sp};
 use crate::modules::ui::theme::{BACK, DETAIL, TEAL};
 
-use super::Message;
+use super::{Message, StatusLine};
 
 /// The width of the dialog box, in reference pixels.
 const DIALOG_WIDTH: f32 = 900.0;
@@ -69,6 +69,7 @@ const CLOSE_PAD_H: f32 = 28.0;
 /// open. `dest_menu_hovered` reports whether the pointer is over that menu.
 /// `dry_run_hovered` reports whether the pointer is over the DRY-RUN button.
 /// `sync_run_hovered` reports whether the pointer is over the SYNC button.
+/// `status` holds the lines shown in the STATUS box.
 ///
 /// Returns a full-window overlay: a dimmed backdrop that closes the dialog on
 /// press, and a dialog box holding the sync settings elements and the CLOSE
@@ -84,6 +85,7 @@ pub fn view<'a>(
     dest_menu_hovered: bool,
     dry_run_hovered: bool,
     sync_run_hovered: bool,
+    status: &'a [StatusLine],
 ) -> Element<'a, Message> {
     // The dimmed backdrop. Pressing it closes the dialog.
     let backdrop = MouseArea::new(
@@ -118,6 +120,7 @@ pub fn view<'a>(
             dest_menu_hovered,
             dry_run_hovered,
             sync_run_hovered,
+            status,
         ))
         .push(close_button());
 

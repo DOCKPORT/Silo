@@ -21,12 +21,32 @@ use iced::widget::{Stack, container, text};
 use iced::window::Position;
 use iced::{Length, Size, Subscription, Task, application};
 
-use crate::modules::{config, silo_size};
+use crate::modules::{config, silo_size, sync_engine};
 
 use super::font;
 use super::scaling::Scaling;
 use super::scanlines;
 use super::theme::silo_theme;
+
+/// The kind of a status line; the view maps it to a theme color.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum StatusKind {
+    /// Neutral progress information, rendered in grey.
+    Info,
+    /// A successful outcome, rendered in teal.
+    Success,
+    /// A failed outcome, rendered in orange.
+    Error,
+}
+
+/// One line of output in the Sync dialog STATUS box.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) struct StatusLine {
+    /// How the line is categorized, which drives its color.
+    pub(super) kind: StatusKind,
+    /// The text of the line.
+    pub(super) text: String,
+}
 
 /// The Silo application state.
 #[derive(Debug, Default)]
@@ -59,6 +79,8 @@ pub struct SiloApp {
     dry_run_hovered: bool,
     /// Whether the pointer is currently over the SYNC button in the dialog.
     sync_run_hovered: bool,
+    /// The lines shown in the Sync dialog STATUS box, newest last.
+    sync_status: Vec<StatusLine>,
     /// The selected source folders, loaded once when the Config dialog opens.
     folder_paths: Vec<PathBuf>,
     /// The size label of each folder, parallel to `folder_paths`. Filled in
@@ -81,7 +103,7 @@ pub struct SiloApp {
     /// Whether the silo has at least one source folder in `silo_data_paths`.
     /// Drives the live STATUS label in the action area.
     is_populated: bool,
-    /// The human-readable total silo size, for example "5.46GB". Holds "--"
+    /// The human-readable total silo size, for example "5.46 GiB". Holds "--"
     /// while the first computation runs, and "N/A" when a source folder
     /// cannot be read.
     silo_size: String,
@@ -172,12 +194,18 @@ enum Message {
     DestMenuHovered(bool),
     /// The pointer entered or left the DRY-RUN button.
     DryRunHovered(bool),
-    /// The DRY-RUN button was pressed; runs a dry run (added in a later step).
+    /// The DRY-RUN button was pressed; starts the dry-run status flow.
     DryRunPressed,
+    /// The dry run finished; carries the result lines for the STATUS box.
+    DryRunFinished(Vec<StatusLine>),
     /// The pointer entered or left the SYNC button in the dialog.
     SyncRunHovered(bool),
-    /// The SYNC button was pressed; runs a sync (added in a later step).
+    /// The SYNC button was pressed; starts the sync status flow.
     SyncRunPressed,
+    /// The sync is ready to run; carries the plan the engine task will use.
+    SyncStarted(sync_engine::SyncPlan),
+    /// The sync finished; carries the outcome lines for the STATUS box.
+    SyncFinished(Vec<StatusLine>),
     /// The GitHub logo was pressed; opens the project page.
     OpenGithub,
     /// A no-op message used to absorb clicks.
@@ -186,24 +214,31 @@ enum Message {
 
 /// Boots the Silo application.
 ///
-/// Returns the initial state and a no-op [`Task`]. The populated flag is read
-/// once from the settings database, so the STATUS label is live from the
-/// first frame. Reading again on every frame would hit the database each
-/// redraw.
+/// Returns the initial state and a no-op [`Task`]. The saved settings are
+/// read once from the database, so the folder list, excludes, destination,
+/// and populated flag are live from the first frame. Reading again on every
+/// frame would hit the database each redraw.
 fn new() -> (SiloApp, Task<Message>) {
-    let is_populated = match config::load() {
-        Ok(settings) => !settings.silo_data_paths.is_empty(),
+    // Load the saved settings once at startup, so the Sync dialog builds its
+    // plan from the real source folders. Without this, the folder list stays
+    // empty until the Config dialog loads the rows.
+    let mut app = SiloApp {
+        silo_size: "--".to_string(),
+        ..SiloApp::default()
+    };
+    match config::load() {
+        Ok(settings) => {
+            app.folder_paths = settings.silo_data_paths;
+            app.exclude_patterns = settings.excludes;
+            app.rsync_dest_path = settings.rsync_dest_path;
+            app.is_populated = !app.folder_paths.is_empty();
+        }
         Err(err) => {
             eprintln!("silo: could not load the saved settings: {err}");
-            false
         }
     };
     (
-        SiloApp {
-            is_populated,
-            silo_size: "--".to_string(),
-            ..SiloApp::default()
-        },
+        app,
         // Compute the total silo size in the background, so the SILO SIZE
         // label is live from the first frame.
         silo_size_task(),
@@ -426,6 +461,8 @@ fn update(state: &mut SiloApp, message: Message) -> Task<Message> {
                     state.rsync_dest_path = None;
                 }
             };
+            // Start with a fresh STATUS box on every open.
+            state.sync_status.clear();
             Task::none()
         }
         Message::CloseSyncSiloDialog => {
@@ -490,12 +527,73 @@ fn update(state: &mut SiloApp, message: Message) -> Task<Message> {
         }
         Message::DryRunHovered(hovered) => set_hovered(&mut state.dry_run_hovered, hovered),
         Message::DryRunPressed => {
-            // The dry-run logic is added in a later step.
+            state.sync_status.push(StatusLine {
+                kind: StatusKind::Info,
+                text: "Dry run in progress...".to_string(),
+            });
+
+            // Build the plan from the current settings. The engine performs
+            // the pre-flight checks (rsync present, sources exist) in the
+            // background task.
+            let Some(plan) = build_sync_plan(state) else {
+                state.sync_status.push(StatusLine {
+                    kind: StatusKind::Error,
+                    text: "Dry run failed: no sync destination selected".to_string(),
+                });
+                return Task::none();
+            };
+
+            Task::perform(
+                async move { sync_engine::dry_run(&plan) },
+                |result| {
+                    let lines = match result {
+                        Ok(outcome) => dry_run_result_lines(outcome),
+                        Err(err) => vec![StatusLine {
+                            kind: StatusKind::Error,
+                            text: format!("Dry run failed: {err}"),
+                        }],
+                    };
+                    Message::DryRunFinished(lines)
+                },
+            )
+        }
+        Message::DryRunFinished(lines) => {
+            state.sync_status.extend(lines);
             Task::none()
         }
         Message::SyncRunHovered(hovered) => set_hovered(&mut state.sync_run_hovered, hovered),
         Message::SyncRunPressed => {
-            // The sync logic is added in a later step.
+            state.sync_status.push(StatusLine {
+                kind: StatusKind::Info,
+                text: "Preparing sync...".to_string(),
+            });
+
+            // Build the plan from the same settings as the dry run. The
+            // engine performs the pre-flight checks in the background task.
+            let Some(plan) = build_sync_plan(state) else {
+                state.sync_status.push(StatusLine {
+                    kind: StatusKind::Error,
+                    text: "Sync failed: no sync destination selected".to_string(),
+                });
+                return Task::none();
+            };
+
+            // Stage two: mark the run as in progress, then spawn the engine
+            // task carrying the plan.
+            Task::perform(async move { plan }, Message::SyncStarted)
+        }
+        Message::SyncStarted(plan) => {
+            state.sync_status.push(StatusLine {
+                kind: StatusKind::Info,
+                text: "Sync in progress...".to_string(),
+            });
+            Task::perform(
+                async move { sync_engine::sync(&plan) },
+                |result| Message::SyncFinished(sync_result_lines(result)),
+            )
+        }
+        Message::SyncFinished(lines) => {
+            state.sync_status.extend(lines);
             Task::none()
         }
         Message::OpenGithub => {
@@ -564,6 +662,194 @@ fn save_excludes(state: &SiloApp) {
     }
 }
 
+/// Builds the sync plan from the current settings.
+///
+/// The source folders, exclude patterns, and destination come from the
+/// in-memory state, which mirrors the settings database tables. Returns `None`
+/// when no sync destination is selected.
+fn build_sync_plan(state: &SiloApp) -> Option<sync_engine::SyncPlan> {
+    let destination = state.rsync_dest_path.clone()?;
+    Some(sync_engine::SyncPlan::new(
+        state.folder_paths.clone(),
+        state.exclude_patterns.clone(),
+        destination,
+    ))
+}
+
+/// Turns a finished dry run into the lines shown in the STATUS box.
+///
+/// A teal "Dry run complete" header, the rsync stats summary in grey, and any
+/// rsync warnings in orange. Trailing blank space is trimmed from the output.
+/// The stats byte counts are re-formatted to IEC units, so they read in GiB
+/// like every other size label in the UI.
+fn dry_run_result_lines(outcome: sync_engine::DryRunOutcome) -> Vec<StatusLine> {
+    let mut lines = vec![StatusLine {
+        kind: StatusKind::Success,
+        text: "Dry run complete".to_string(),
+    }];
+
+    let summary = reformat_stats_summary(&dry_run_summary(&outcome.stdout));
+    if !summary.is_empty() {
+        lines.push(StatusLine {
+            kind: StatusKind::Info,
+            text: summary,
+        });
+    }
+
+    let stderr = outcome.stderr.trim();
+    if !stderr.is_empty() {
+        lines.push(StatusLine {
+            kind: StatusKind::Error,
+            text: stderr.to_string(),
+        });
+    }
+
+    lines
+}
+
+/// Extracts the stats summary from a dry run's stdout.
+///
+/// The full output lists every file change; only the trailing stats block is
+/// wanted for the STATUS box. The block starts at the `Number of files:` line
+/// and runs to the end. Returns the whole trimmed output when the block is
+/// missing.
+fn dry_run_summary(stdout: &str) -> String {
+    match stdout.find("Number of files:") {
+        Some(index) => stdout[index..].trim().to_string(),
+        None => stdout.trim().to_string(),
+    }
+}
+
+/// Re-formats the byte counts in a dry-run stats summary to IEC units.
+///
+/// rsync prints raw byte numbers in its stats block. Every value that is a
+/// byte count becomes a [`silo_size::human_size`] label, so the summary reads
+/// in GiB like the rest of the UI. Lines without a byte count pass through
+/// unchanged.
+fn reformat_stats_summary(summary: &str) -> String {
+    summary
+        .lines()
+        .map(reformat_stats_line)
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+/// Re-formats one stats line's byte counts to IEC units.
+///
+/// Handles the known byte-count shapes in the rsync stats block: `label: N
+/// bytes`, `Total bytes sent/received: N`, the trailing `sent N bytes
+/// received M bytes ...` line, and `total size is N speedup is ...`. Any
+/// other line is returned unchanged. rsync prints thousands separators by
+/// default, so the byte counts are normalized before parsing.
+fn reformat_stats_line(line: &str) -> String {
+    // "label: N bytes", for example "Total file size: 7,423,077,535 bytes".
+    if let Some((label, raw)) = line.rsplit_once(": ") {
+        if let Some(rest) = raw.strip_suffix(" bytes") {
+            if let Some(bytes) = parse_bytes(rest) {
+                return format!("{label}: {}", silo_size::human_size(bytes));
+            }
+        }
+        // "Total bytes sent: 517,176" and "Total bytes received: 2,754".
+        if label.starts_with("Total bytes") {
+            if let Some(bytes) = parse_bytes(raw) {
+                return format!("{label}: {}", silo_size::human_size(bytes));
+            }
+        }
+    }
+
+    // "sent 517,176 bytes  received 2,754 bytes  1,039,860.00 bytes/sec".
+    if let Some(rest) = line.strip_prefix("sent ") {
+        let tokens: Vec<&str> = rest.split_whitespace().collect();
+        if tokens.len() >= 5
+            && tokens[1] == "bytes"
+            && tokens[2] == "received"
+            && tokens[4] == "bytes"
+        {
+            if let (Some(sent), Some(received)) = (parse_bytes(tokens[0]), parse_bytes(tokens[3])) {
+                return format!(
+                    "sent {}  received {}  {}",
+                    silo_size::human_size(sent),
+                    silo_size::human_size(received),
+                    tokens[5..].join(" ")
+                );
+            }
+        }
+    }
+
+    // "total size is 7,423,077,535  speedup is 14,277.07 (DRY RUN)".
+    if let Some(rest) = line.strip_prefix("total size is ") {
+        if let Some((value, tail)) = rest.split_once(char::is_whitespace) {
+            if let Some(bytes) = parse_bytes(value) {
+                return format!(
+                    "total size is {} {}",
+                    silo_size::human_size(bytes),
+                    tail.trim_start()
+                );
+            }
+        }
+    }
+
+    line.to_string()
+}
+
+/// Parses a byte count that may include thousands separators.
+///
+/// rsync prints numbers such as `7,423,077,535` by default; the separators
+/// are removed so the value parses as a plain integer.
+fn parse_bytes(raw: &str) -> Option<u64> {
+    raw.replace(',', "").parse().ok()
+}
+
+/// Turns a finished sync into the lines shown in the STATUS box.
+///
+/// Success shows a teal completion message; rsync and engine failures show
+/// an orange reason. Any rsync stderr output is appended in orange, trimmed.
+fn sync_result_lines(
+    result: Result<sync_engine::SyncOutcome, sync_engine::SyncError>,
+) -> Vec<StatusLine> {
+    match result {
+        Ok(sync_engine::SyncOutcome::Success { stderr, .. }) => {
+            let mut lines = vec![StatusLine {
+                kind: StatusKind::Success,
+                text: "Sync complete. You can close this dialog; the application stays open."
+                    .to_string(),
+            }];
+            append_sync_stderr(&mut lines, &stderr);
+            lines
+        }
+        Ok(sync_engine::SyncOutcome::Failure { exit_code, stderr, .. }) => {
+            let reason = match exit_code {
+                Some(code) => format!("Sync failed: rsync exited with code {code}"),
+                None => "Sync failed: rsync did not exit cleanly".to_string(),
+            };
+            let mut lines = vec![StatusLine {
+                kind: StatusKind::Error,
+                text: reason,
+            }];
+            append_sync_stderr(&mut lines, &stderr);
+            lines
+        }
+        Err(err) => vec![StatusLine {
+            kind: StatusKind::Error,
+            text: format!("Sync failed: {err}"),
+        }],
+    }
+}
+
+/// Appends rsync's standard error to the status lines, if there is any.
+///
+/// rsync writes warnings and error details to stderr. They are shown in
+/// orange so they stand out from the progress and completion lines.
+fn append_sync_stderr(lines: &mut Vec<StatusLine>, stderr: &str) {
+    let stderr = stderr.trim();
+    if !stderr.is_empty() {
+        lines.push(StatusLine {
+            kind: StatusKind::Error,
+            text: stderr.to_string(),
+        });
+    }
+}
+
 /// Builds the application view.
 ///
 /// The base is a full-window [`Container`] with no visible content. The theme's
@@ -609,6 +895,7 @@ fn view(state: &SiloApp) -> iced::Element<'_, Message> {
             state.dest_menu_hovered,
             state.dry_run_hovered,
             state.sync_run_hovered,
+            &state.sync_status,
         ));
     }
 

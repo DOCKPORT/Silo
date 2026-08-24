@@ -220,7 +220,7 @@ pub(super) fn separator() -> Element<'static, Message> {
 /// line) and are centered in the space between the top orange rule and the
 /// center line. `is_populated` selects the live STATUS label: "POPULATED"
 /// when the silo has at least one source folder, "NOT POPULATED" otherwise.
-/// `silo_size` is the live total size label, for example "5.46GB".
+/// `silo_size` is the live total size label, for example "5.46 GiB".
 fn status_labels(is_populated: bool, silo_size: &str) -> Element<'static, Message> {
     let region_top = TOP_GAP + LINE_THICKNESS;
     let region_bottom = band_center() - DETAIL_LINE_THICKNESS / 2.0;

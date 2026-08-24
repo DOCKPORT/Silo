@@ -50,6 +50,10 @@ pub(crate) fn build(plan: &SyncPlan) -> Command {
 /// - `--itemize-changes`: list every change with a detail prefix
 /// - `--stats`: report totals such as file count and byte count
 ///
+/// Sizes are left as raw byte numbers. rsync's `-h` flag would print decimal
+/// units (for example `7.42G`); the UI re-formats the raw counts in IEC units
+/// so every size label in the app reads the same way.
+///
 /// The command is not executed. The caller decides how to run and wait on it.
 pub(crate) fn build_dry_run(plan: &SyncPlan) -> Command {
     let mut cmd = build(plan);

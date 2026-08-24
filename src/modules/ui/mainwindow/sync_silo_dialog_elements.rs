@@ -17,9 +17,10 @@ use iced::widget::{Column, MouseArea, Row, Space, container, svg, text};
 use iced::{Border, Color, Element, Length, Padding};
 
 use crate::modules::ui::scaling::sp;
+use crate::modules::ui::scrollbar;
 use crate::modules::ui::theme::{DETAIL, GREY, ORANGE, TEAL};
 
-use super::Message;
+use super::{Message, StatusKind, StatusLine};
 
 /// The width of the box borders, in reference pixels.
 const BOX_BORDER_WIDTH: f32 = 1.0;
@@ -68,6 +69,12 @@ const CONTENT_GAP: f32 = 20.0;
 /// The horizontal gap between the DRY-RUN and SYNC buttons.
 const BUTTON_SPACING: f32 = 20.0;
 
+/// The font size of the STATUS box lines, in reference pixels.
+const STATUS_TEXT_SIZE: f32 = 14.0;
+
+/// The vertical gap between two STATUS box lines, in reference pixels.
+const STATUS_LINE_SPACING: f32 = 6.0;
+
 /// The embedded folder icon, compiled into the binary at build time.
 const FOLDER_ICON_BYTES: &[u8] = include_bytes!(concat!(
     env!("CARGO_MANIFEST_DIR"),
@@ -85,8 +92,8 @@ const FOLDER_ICON_BYTES: &[u8] = include_bytes!(concat!(
 /// remove menu is open. `dest_menu_hovered` reports whether the pointer is
 /// over that menu. `dry_run_hovered` reports whether the pointer is over the
 /// DRY-RUN button. `sync_run_hovered` reports whether the pointer is over the
-/// SYNC button. The source folders and excludes panels are added in later
-/// steps.
+/// SYNC button. `status` holds the lines shown in the STATUS box. The source
+/// folders and excludes panels are added in later steps.
 pub fn view<'a>(
     dest_path: Option<&'a Path>,
     dest_plus_hovered: bool,
@@ -95,6 +102,7 @@ pub fn view<'a>(
     dest_menu_hovered: bool,
     dry_run_hovered: bool,
     sync_run_hovered: bool,
+    status: &'a [StatusLine],
 ) -> Element<'a, Message> {
     Column::new()
         .width(Length::Fill)
@@ -108,7 +116,7 @@ pub fn view<'a>(
             dest_menu_hovered,
         ))
         .push(run_buttons(dry_run_hovered, sync_run_hovered))
-        .push(status_box())
+        .push(status_box(status))
         .into()
 }
 
@@ -347,22 +355,33 @@ fn run_buttons(dry_run_hovered: bool, sync_run_hovered: bool) -> Element<'static
 
 /// Builds the STATUS box: a bordered rectangle the same width as the
 /// destination box but filling the remaining dialog height. It shows the
-/// "STATUS" title at the top left with a divider line below. The status
-/// output is added in a later step.
-fn status_box() -> Element<'static, Message> {
-    let header: Element<'static, Message> = Row::new()
+/// "STATUS" title at the top left with a divider line below, and renders
+/// `lines` below the divider as a scrollable list. Each line is colored by
+/// its kind: grey for progress, teal for success, orange for failure.
+fn status_box<'a>(lines: &'a [StatusLine]) -> Element<'a, Message> {
+    let header: Element<'a, Message> = Row::new()
         .width(Length::Fill)
         .height(Length::Fixed(sp(HEADER_HEIGHT)))
         .align_y(iced::alignment::Vertical::Center)
         .push(text("STATUS").size(sp(TITLE_SIZE)).color(GREY))
         .into();
 
+    let mut list = Column::new().spacing(sp(STATUS_LINE_SPACING));
+    for line in lines {
+        list = list.push(
+            text(line.text.as_str())
+                .size(sp(STATUS_TEXT_SIZE))
+                .color(status_color(line.kind)),
+        );
+    }
+
     let content = Column::new()
         .width(Length::Fill)
         .height(Length::Fill)
         .spacing(sp(TITLE_SPACING))
         .push(header)
-        .push(divider());
+        .push(divider())
+        .push(scrollbar::vertical(list));
 
     container(content)
         .width(Length::Fill)
@@ -383,4 +402,13 @@ fn status_box() -> Element<'static, Message> {
             ..container::Style::default()
         })
         .into()
+}
+
+/// Maps a status line kind to its theme color.
+fn status_color(kind: StatusKind) -> Color {
+    match kind {
+        StatusKind::Info => GREY,
+        StatusKind::Success => TEAL,
+        StatusKind::Error => ORANGE,
+    }
 }

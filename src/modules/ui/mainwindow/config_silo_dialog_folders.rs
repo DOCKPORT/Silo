@@ -167,10 +167,10 @@ fn record(first_error: &Mutex<Option<io::Error>>, err: io::Error) {
 
 /// Format a byte count as a human-readable size string.
 ///
-/// Uses binary units: 1 KB = 1024 bytes. A zero count renders as `0 B`;
+/// Uses binary units: 1 KiB = 1024 bytes. A zero count renders as `0 B`;
 /// everything else prints with two decimal places and a space.
 fn human_size(bytes: u64) -> String {
-    const UNITS: [&str; 6] = ["B", "KB", "MB", "GB", "TB", "PB"];
+    const UNITS: [&str; 6] = ["B", "KiB", "MiB", "GiB", "TiB", "PiB"];
 
     if bytes == 0 {
         return "0 B".to_string();

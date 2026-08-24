@@ -98,11 +98,11 @@ pub fn silo_size_label() -> String {
 
 /// Format a byte count as a human-readable size string.
 ///
-/// Uses binary units: 1 KB = 1024 bytes. A zero count renders as `0 B`;
-/// everything else prints with two decimal places and a space, so 6.91 GB
-/// render as `6.91 GB`.
+/// Uses binary units: 1 KiB = 1024 bytes. A zero count renders as `0 B`;
+/// everything else prints with two decimal places and a space, so 6.91 GiB
+/// render as `6.91 GiB`.
 pub fn human_size(bytes: u64) -> String {
-    const UNITS: [&str; 4] = ["B", "KB", "MB", "GB"];
+    const UNITS: [&str; 6] = ["B", "KiB", "MiB", "GiB", "TiB", "PiB"];
 
     if bytes == 0 {
         return "0 B".to_string();
