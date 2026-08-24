@@ -24,9 +24,12 @@ The UI interface carries a theme inspired by the TV show *Silo*.
 | GUI | Iced |
 | Config | SQLite |
 | Sync engine | rsync |
-| Platform | Linux |
-| Binary | AppImage |
+| Distribution  | AppImage |
 
+
+## UI preview
+
+![Silo](logo/Screenshot_2026-08-24_09-25-26.png)
 
 ## More about rsync:
 
