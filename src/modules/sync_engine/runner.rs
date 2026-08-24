@@ -8,6 +8,7 @@
 use std::io::{self, BufReader, Read};
 use std::path::Path;
 use std::process::Stdio;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 
 use super::command;
@@ -21,8 +22,13 @@ use super::{SyncOutcome, SyncPlan};
 /// output and its warnings to standard error. Progress lines are passed
 /// through but filtered out of the final [`SyncOutcome`], so the STATUS box
 /// shows only the warnings.
+///
+/// When `abort` becomes true, rsync is killed and the outcome is
+/// [`SyncOutcome::Aborted`]. The flag is checked between reads, so the abort
+/// takes effect as soon as the next output chunk arrives.
 pub(crate) fn sync_streaming(
     plan: &SyncPlan,
+    abort: &AtomicBool,
     mut on_line: impl FnMut(&str),
 ) -> Result<SyncOutcome, SyncError> {
     validate(plan)?;
@@ -50,7 +56,7 @@ pub(crate) fn sync_streaming(
     let stderr_lines: Arc<Mutex<Vec<String>>> = Arc::new(Mutex::new(Vec::new()));
     let stderr_buffer = Arc::clone(&stderr_lines);
     let stderr_thread = std::thread::spawn(move || {
-        read_lines(stderr, &mut |line| {
+        read_lines(stderr, None, &mut |line| {
             stderr_buffer.lock().unwrap().push(line);
         });
     });
@@ -58,13 +64,19 @@ pub(crate) fn sync_streaming(
     // Progress lines stream live from stdout; any non-progress stdout (for
     // example a warning) is kept for the outcome.
     let mut clean_stdout = String::new();
-    read_lines(stdout, &mut |line| {
+    read_lines(stdout, Some(abort), &mut |line| {
         on_line(&line);
         if !is_progress_line(&line) {
             clean_stdout.push_str(&line);
             clean_stdout.push('\n');
         }
     });
+
+    // The user pressed ABORT SYNC: kill rsync so the pipes close and the
+    // child can be reaped. Killing the child also ends the stderr thread.
+    if abort.load(Ordering::Relaxed) {
+        let _ = child.kill();
+    }
 
     // Now the warnings that were buffered from stderr.
     let _ = stderr_thread.join();
@@ -79,6 +91,10 @@ pub(crate) fn sync_streaming(
     }
 
     let status = child.wait().map_err(SyncError::Process)?;
+
+    if abort.load(Ordering::Relaxed) {
+        return Ok(SyncOutcome::Aborted);
+    }
 
     Ok(match status.code() {
         Some(0) => SyncOutcome::Success {
@@ -96,13 +112,17 @@ pub(crate) fn sync_streaming(
 /// Reads a pipe, splits it on `\r` and `\n`, and calls `emit` per line.
 ///
 /// rsync separates progress updates with `\r` and only the final line ends
-/// with `\n`, so the reader must split on both.
-fn read_lines<R: Read>(reader: R, emit: &mut dyn FnMut(String)) {
+/// with `\n`, so the reader must split on both. When `abort` is set and
+/// becomes true, the reader stops early so the caller can kill the child.
+fn read_lines<R: Read>(reader: R, abort: Option<&AtomicBool>, emit: &mut dyn FnMut(String)) {
     let mut reader = BufReader::new(reader);
     let mut buffer: Vec<u8> = Vec::new();
     let mut chunk = [0u8; 4096];
 
     loop {
+        if abort.is_some_and(|flag| flag.load(Ordering::Relaxed)) {
+            return;
+        }
         let n = match reader.read(&mut chunk) {
             Ok(n) => n,
             Err(err) if err.kind() == io::ErrorKind::Interrupted => continue,

@@ -161,12 +161,15 @@ pub(super) fn sync_result_lines(
         Ok(sync_engine::SyncOutcome::Success { stderr, .. }) => {
             let mut lines = vec![StatusLine {
                 kind: StatusKind::Success,
-                text: "Sync complete. You can close this dialog; the application stays open."
-                    .to_string(),
+                text: "Sync complete.".to_string(),
             }];
             append_sync_stderr(&mut lines, &stderr);
             lines
         }
+        Ok(sync_engine::SyncOutcome::Aborted) => vec![StatusLine {
+            kind: StatusKind::Error,
+            text: "Sync aborted".to_string(),
+        }],
         Ok(sync_engine::SyncOutcome::Failure {
             exit_code, stderr, ..
         }) => {

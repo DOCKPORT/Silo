@@ -17,6 +17,7 @@ mod error;
 mod runner;
 
 use std::path::PathBuf;
+use std::sync::atomic::AtomicBool;
 
 pub use dry_run::{DryRunOutcome, dry_run};
 pub use error::SyncError;
@@ -71,16 +72,20 @@ pub enum SyncOutcome {
         /// Captured standard error.
         stderr: String,
     },
+    /// The sync was aborted by the user.
+    Aborted,
 }
 
-/// Run a sync while streaming rsync's standard error line by line.
+/// Run a sync while streaming rsync's output line by line.
 ///
-/// `on_line` receives every line rsync writes to standard error, in order,
-/// while the process runs. Returns the [`SyncOutcome`] with the progress
-/// lines filtered out of the reported stderr.
+/// `on_line` receives every line rsync writes, in order, while the process
+/// runs. Returns the [`SyncOutcome`] with the progress lines filtered out of
+/// the reported output. When `abort` becomes true, rsync is killed and the
+/// outcome is [`SyncOutcome::Aborted`].
 pub fn sync_streaming(
     plan: &SyncPlan,
+    abort: &AtomicBool,
     on_line: impl FnMut(&str),
 ) -> Result<SyncOutcome, SyncError> {
-    runner::sync_streaming(plan, on_line)
+    runner::sync_streaming(plan, abort, on_line)
 }

@@ -7,10 +7,10 @@
 
 use iced::mouse;
 use iced::widget::{MouseArea, Row, Stack, container, svg, text};
-use iced::{Border, Element, Length, Padding};
+use iced::{Border, Color, Element, Length, Padding};
 
 use crate::modules::ui::scaling::sp;
-use crate::modules::ui::theme::{DETAIL, ORANGE, TEAL};
+use crate::modules::ui::theme::{DETAIL, GREY, ORANGE, TEAL};
 
 use super::Message;
 
@@ -39,8 +39,8 @@ const LOGO_SIZE: f32 = 200.0;
 /// The gap between the left edge of the window and the logo, in reference px.
 const LOGO_LEFT_GAP: f32 = 5.0;
 
-/// The thickness of the thin teal detail line, in reference pixels.
-const DETAIL_LINE_THICKNESS: f32 = 2.0;
+/// The thickness of the thin middle detail line, in reference pixels.
+const DETAIL_LINE_THICKNESS: f32 = 1.0;
 
 /// The gap between the logo's right edge and the start of the detail line.
 const DETAIL_GAP: f32 = 5.0;
@@ -67,8 +67,8 @@ const BUTTON_WIDTH: f32 = 300.0;
 /// The internal horizontal padding of the action buttons, in reference px.
 const BUTTON_PAD_H: f32 = 30.0;
 
-/// The gap between the right window edge and the action buttons, in reference px.
-const BUTTON_RIGHT_PADDING: f32 = 30.0;
+/// The horizontal gap between the two action buttons, in reference px.
+const BUTTON_SPACING: f32 = 20.0;
 
 /// The width of the action button border, in reference pixels.
 const BUTTON_BORDER_WIDTH: f32 = 5.0;
@@ -145,16 +145,21 @@ fn logo(hovered: bool) -> Element<'static, Message> {
         .into()
 }
 
-/// Builds the thin teal detail line, centered with the logo and filling the
+/// Builds the thin grey detail line, centered with the logo and filling the
 /// width to the right of it.
 fn detail_line() -> Element<'static, Message> {
     let center = band_center();
 
+    // At small window sizes the scaled thickness can round below one real
+    // pixel, which makes the line vanish. Clamp it so the line always shows.
+    let thickness = sp(DETAIL_LINE_THICKNESS).max(1.0);
+
     let line = container(text(""))
         .width(Length::Fill)
-        .height(sp(DETAIL_LINE_THICKNESS))
+        .height(thickness)
         .style(|_| container::Style {
-            background: Some(DETAIL.into()),
+            // 50% opacity so the line reads as a divider, not a border.
+            background: Some(Color { a: 0.5, ..GREY }.into()),
             ..container::Style::default()
         });
 
@@ -162,7 +167,7 @@ fn detail_line() -> Element<'static, Message> {
         .width(Length::Fill)
         .height(Length::Fill)
         .padding(Padding {
-            top: sp(center - DETAIL_LINE_THICKNESS / 2.0),
+            top: sp(center) - thickness / 2.0,
             bottom: 0.0,
             left: sp(LOGO_LEFT_GAP + LOGO_SIZE + DETAIL_GAP),
             right: 0.0,
@@ -191,16 +196,15 @@ pub(super) fn separator() -> Element<'static, Message> {
 
 /// Builds the status labels, vertically centered above the center line.
 ///
-/// The labels sit to the right of the logo (same left offset as the detail
-/// line) and are centered in the space between the top orange rule and the
-/// center line. `is_populated` selects the live STATUS label: "POPULATED"
-/// when the silo has at least one source folder, "NOT POPULATED" otherwise.
-/// `silo_size` is the live total size label, for example "5.5 GiB".
+/// The label row is centered horizontally in the window and vertically in
+/// the space between the top orange rule and the center line. `is_populated`
+/// selects the live STATUS label: "POPULATED" when the silo has at least one
+/// source folder, "NOT POPULATED" otherwise. `silo_size` is the live total
+/// size label, for example "5.5 GiB".
 fn status_labels(is_populated: bool, silo_size: &str) -> Element<'static, Message> {
     let region_top = TOP_GAP + LINE_THICKNESS;
     let region_bottom = band_center() - DETAIL_LINE_THICKNESS / 2.0;
     let label_top = region_top + (region_bottom - region_top - TEXT_SIZE) / 2.0;
-    let left = LOGO_LEFT_GAP + LOGO_SIZE + DETAIL_GAP;
 
     let status = if is_populated {
         "STATUS: POPULATED"
@@ -220,10 +224,11 @@ fn status_labels(is_populated: bool, silo_size: &str) -> Element<'static, Messag
     container(row)
         .width(Length::Fill)
         .height(Length::Fill)
+        .align_x(iced::alignment::Horizontal::Center)
         .padding(Padding {
             top: sp(label_top),
             bottom: 0.0,
-            left: sp(left),
+            left: 0.0,
             right: 0.0,
         })
         .into()
@@ -275,26 +280,40 @@ pub(crate) fn silo_button(
         .into()
 }
 
-/// Positions a button on the far right, vertically centered in a band.
+/// Builds the CONFIG. SILO and SYNC SILO buttons in one centered row.
 ///
-/// `region_top` and `region_bottom` bound the band (in reference pixels) the
-/// button is centered within. The button is pinned to the right edge with the
-/// shared right padding.
-fn button_area(
-    button: Element<'static, Message>,
-    region_top: f32,
-    region_bottom: f32,
-) -> Element<'static, Message> {
-    let button_top = region_top + (region_bottom - region_top - BUTTON_HEIGHT) / 2.0;
+/// The row sits in the band below the center line, centered horizontally in
+/// the window.
+fn action_buttons(config_hovered: bool, sync_hovered: bool) -> Element<'static, Message> {
+    let lower_top = band_center() + DETAIL_LINE_THICKNESS / 2.0;
+    let lower_bottom = TOP_GAP + LINE_SPACING;
+    let button_top = lower_top + (lower_bottom - lower_top - BUTTON_HEIGHT) / 2.0;
 
-    container(button)
+    let row = Row::new()
+        .spacing(sp(BUTTON_SPACING))
+        .push(silo_button(
+            "CONFIG. SILO",
+            config_hovered,
+            Message::OpenConfigSiloDialog,
+            Message::ConfigHovered(true),
+            Message::ConfigHovered(false),
+        ))
+        .push(silo_button(
+            "SYNC SILO",
+            sync_hovered,
+            Message::OpenSyncSiloDialog,
+            Message::SyncHovered(true),
+            Message::SyncHovered(false),
+        ));
+
+    container(row)
         .width(Length::Fill)
         .height(Length::Fill)
-        .align_x(iced::alignment::Horizontal::Right)
+        .align_x(iced::alignment::Horizontal::Center)
         .padding(Padding {
             top: sp(button_top),
-            right: sp(BUTTON_RIGHT_PADDING),
             left: 0.0,
+            right: 0.0,
             bottom: 0.0,
         })
         .into()
@@ -303,16 +322,16 @@ fn button_area(
 /// Builds the ActionArea overlay element.
 ///
 /// Returns a full-size, transparent layer holding two orange rules, the logo,
-/// a thin teal detail line, and the status labels. The first rule sits
-/// `TOP_GAP` from the top of the window; the second sits `LINE_SPACING` below
-/// it. The logo is placed at the far left, centered between the two rules, and
-/// the detail line runs from just right of the logo to the right edge, also
-/// centered. The status labels sit above the center line, and the CONFIG
-/// button is pinned to the far right on the same band. `is_populated` and
-/// `silo_size` feed the live STATUS and SILO SIZE labels. The SYNC button
-/// sits below the center line, between it and the bottom orange rule.
-/// Everything is positioned via top/left padding so it stays above the base
-/// background and below the scanlines.
+/// a thin grey detail line, the status labels, and the two action buttons.
+/// The first rule sits `TOP_GAP` from the top of the window; the second sits
+/// `LINE_SPACING` below it. The logo is placed at the far left, centered
+/// between the two rules, and the detail line runs from just right of the
+/// logo to the right edge, also centered. The status labels sit above the
+/// center line. The CONFIG. SILO and SYNC SILO buttons share one row below
+/// the center line, centered horizontally. `is_populated` and `silo_size`
+/// feed the live STATUS and SILO SIZE labels. Everything is positioned via
+/// top/left padding so it stays above the base background and below the
+/// scanlines.
 pub fn view(
     logo_hovered: bool,
     config_hovered: bool,
@@ -320,39 +339,12 @@ pub fn view(
     is_populated: bool,
     silo_size: &str,
 ) -> Element<'static, Message> {
-    // The bands above and below the center line.
-    let upper_top = TOP_GAP + LINE_THICKNESS;
-    let upper_bottom = band_center() - DETAIL_LINE_THICKNESS / 2.0;
-    let lower_top = band_center() + DETAIL_LINE_THICKNESS / 2.0;
-    let lower_bottom = TOP_GAP + LINE_SPACING;
-
     Stack::new()
         .push(rule_at(TOP_GAP))
         .push(rule_at(TOP_GAP + LINE_SPACING))
         .push(logo(logo_hovered))
         .push(detail_line())
         .push(status_labels(is_populated, silo_size))
-        .push(button_area(
-            silo_button(
-                "CONFIG. SILO",
-                config_hovered,
-                Message::OpenConfigSiloDialog,
-                Message::ConfigHovered(true),
-                Message::ConfigHovered(false),
-            ),
-            upper_top,
-            upper_bottom,
-        ))
-        .push(button_area(
-            silo_button(
-                "SYNC SILO",
-                sync_hovered,
-                Message::OpenSyncSiloDialog,
-                Message::SyncHovered(true),
-                Message::SyncHovered(false),
-            ),
-            lower_top,
-            lower_bottom,
-        ))
+        .push(action_buttons(config_hovered, sync_hovered))
         .into()
 }

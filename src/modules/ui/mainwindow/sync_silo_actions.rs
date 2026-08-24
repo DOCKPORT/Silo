@@ -5,6 +5,8 @@
 //! [`super::sync_silo_dialog`].
 
 use std::path::PathBuf;
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use iced::{Task, stream};
 
@@ -42,6 +44,16 @@ pub(super) struct SyncState {
     pub(super) sync_status: Vec<StatusLine>,
     /// The live progress of the current sync run, `None` when idle.
     pub(super) sync_progress: Option<SyncProgress>,
+    /// How many dry runs or syncs are currently running; zero when idle.
+    pub(super) active_runs: u32,
+    /// Whether the pointer is currently over the CLEAR STATUS button.
+    pub(super) clear_status_hovered: bool,
+    /// The abort flag for the running sync, `None` when no sync is running.
+    /// Pressing ABORT SYNC sets it; the runner thread observes it and kills
+    /// rsync.
+    pub(super) abort_sync: Option<Arc<AtomicBool>>,
+    /// Whether the pointer is currently over the ABORT SYNC button.
+    pub(super) abort_sync_hovered: bool,
 }
 
 impl SyncState {
@@ -54,7 +66,6 @@ impl SyncState {
         self.dest_menu_hovered = false;
         self.dry_run_hovered = false;
         self.sync_run_hovered = false;
-        self.sync_progress = None;
     }
 }
 
@@ -94,6 +105,14 @@ pub(super) enum SyncMsg {
     SyncRunHovered(bool),
     /// A live progress update from the running sync.
     Progress(SyncProgress),
+    /// The pointer entered or left the CLEAR STATUS button in the dialog.
+    ClearStatusHovered(bool),
+    /// The CLEAR STATUS button was pressed; clears the finished STATUS lines.
+    ClearStatusPressed,
+    /// The pointer entered or left the ABORT SYNC button in the dialog.
+    AbortSyncHovered(bool),
+    /// The ABORT SYNC button was pressed; stops the running sync.
+    AbortSyncPressed,
     /// The SYNC button was pressed; starts the sync status flow.
     SyncRunPressed,
     /// The sync is ready to run; carries the plan the engine task will use.
@@ -104,6 +123,10 @@ pub(super) enum SyncMsg {
 
 /// Opens the dialog: resets the interaction flags and loads the saved
 /// destination.
+///
+/// The STATUS box and progress bar are preserved across close and reopen, so
+/// a sync that keeps running in the background is still visible when the
+/// dialog comes back.
 pub(super) fn open(state: &mut SiloApp) -> Task<Message> {
     state.sync.reset();
     // Load the saved destination once at open. Reloading on every redraw
@@ -115,9 +138,6 @@ pub(super) fn open(state: &mut SiloApp) -> Task<Message> {
             state.sync.rsync_dest_path = None;
         }
     };
-    // Start with a fresh STATUS box on every open.
-    state.sync.sync_status.clear();
-    state.sync.sync_progress = None;
     Task::none()
 }
 
@@ -206,6 +226,8 @@ pub(super) fn update(state: &mut SiloApp, message: SyncMsg) -> Task<Message> {
                 return Task::none();
             };
 
+            state.sync.active_runs += 1;
+
             Task::perform(async move { sync_engine::dry_run(&plan) }, |result| {
                 let lines = match result {
                     Ok(outcome) => dry_run_result_lines(outcome),
@@ -219,6 +241,7 @@ pub(super) fn update(state: &mut SiloApp, message: SyncMsg) -> Task<Message> {
         }
         SyncMsg::DryRunFinished(lines) => {
             state.sync.sync_status.extend(lines);
+            state.sync.active_runs = state.sync.active_runs.saturating_sub(1);
             Task::none()
         }
         SyncMsg::SyncRunHovered(hovered) => set_hovered(&mut state.sync.sync_run_hovered, hovered),
@@ -238,6 +261,8 @@ pub(super) fn update(state: &mut SiloApp, message: SyncMsg) -> Task<Message> {
                 return Task::none();
             };
 
+            state.sync.active_runs += 1;
+
             // Stage two: mark the run as in progress, then spawn the engine
             // task carrying the plan.
             Task::perform(async move { plan }, |plan| {
@@ -250,6 +275,11 @@ pub(super) fn update(state: &mut SiloApp, message: SyncMsg) -> Task<Message> {
                 text: "Sync in progress...".to_string(),
             });
             state.sync.sync_progress = None;
+
+            // The abort flag lets the ABORT SYNC button stop the runner
+            // thread, which then kills rsync.
+            let abort = Arc::new(AtomicBool::new(false));
+            state.sync.abort_sync = Some(Arc::clone(&abort));
 
             // The runner thread streams rsync's progress lines over the
             // stream, then sends the final outcome lines. The stream ends
@@ -270,7 +300,7 @@ pub(super) fn update(state: &mut SiloApp, message: SyncMsg) -> Task<Message> {
                         let total =
                             silo_size::total_size_bytes(&plan.sources, &plan.excludes).unwrap_or(0);
                         let mut prev: Option<SyncProgress> = None;
-                        let result = sync_engine::sync_streaming(&plan, |line| {
+                        let result = sync_engine::sync_streaming(&plan, &abort, |line| {
                             if let Some(progress) = parse_line(line, prev.as_ref(), total) {
                                 prev = Some(progress);
                                 let _ = sender.try_send(SyncMsg::Progress(progress));
@@ -302,6 +332,28 @@ pub(super) fn update(state: &mut SiloApp, message: SyncMsg) -> Task<Message> {
         SyncMsg::SyncFinished(lines) => {
             state.sync.sync_status.extend(lines);
             state.sync.sync_progress = None;
+            state.sync.active_runs = state.sync.active_runs.saturating_sub(1);
+            state.sync.abort_sync = None;
+            Task::none()
+        }
+        SyncMsg::ClearStatusHovered(hovered) => {
+            set_hovered(&mut state.sync.clear_status_hovered, hovered)
+        }
+        SyncMsg::ClearStatusPressed => {
+            // Only finished runs can be cleared; a live run's output stays.
+            if state.sync.active_runs == 0 {
+                state.sync.sync_status.clear();
+            }
+            Task::none()
+        }
+        SyncMsg::AbortSyncHovered(hovered) => {
+            set_hovered(&mut state.sync.abort_sync_hovered, hovered)
+        }
+        SyncMsg::AbortSyncPressed => {
+            // The runner thread observes this flag and kills rsync.
+            if let Some(abort) = &state.sync.abort_sync {
+                abort.store(true, Ordering::Relaxed);
+            }
             Task::none()
         }
         SyncMsg::Progress(progress) => {

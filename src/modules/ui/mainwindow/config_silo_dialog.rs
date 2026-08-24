@@ -111,7 +111,7 @@ pub fn view<'a>(state: &'a ConfigState) -> Element<'a, Message> {
             state.exclude_menu,
             state.exclude_menu_hovered,
         ))
-        .push(close_button(state.close_hovered));
+        .push(close_row(state.close_hovered));
 
     let dialog_box = container(content)
         .width(Length::Fixed(sp(DIALOG_WIDTH)))
@@ -225,5 +225,15 @@ fn close_button(hovered: bool) -> Element<'static, Message> {
         .on_enter(Message::Config(ConfigMsg::CloseHovered(true)))
         .on_exit(Message::Config(ConfigMsg::CloseHovered(false)))
         .interaction(mouse::Interaction::Pointer)
+        .into()
+}
+
+/// Builds the CLOSE button row, pinned to the right side of the dialog.
+///
+/// Matches the Sync dialog, where the bottom buttons sit on the right edge.
+fn close_row(hovered: bool) -> Element<'static, Message> {
+    container(close_button(hovered))
+        .width(Length::Fill)
+        .align_x(iced::alignment::Horizontal::Right)
         .into()
 }

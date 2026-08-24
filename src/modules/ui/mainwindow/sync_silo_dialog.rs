@@ -7,7 +7,7 @@
 //! panels are added in a later step.
 
 use iced::mouse;
-use iced::widget::{Column, MouseArea, Stack, container, text};
+use iced::widget::{Column, MouseArea, Row, Stack, container, text};
 use iced::{Border, Color, Element, Length, Padding};
 
 use crate::modules::ui::crosshatch;
@@ -92,8 +92,8 @@ pub fn view<'a>(state: &'a SyncState) -> Element<'a, Message> {
     )
     .on_press(Message::CloseSyncSiloDialog);
 
-    // The dialog content: the sync settings elements on top and the CLOSE
-    // button at the bottom of the box.
+    // The dialog content: the sync settings elements on top and the CLEAR
+    // STATUS and CLOSE buttons at the bottom of the box.
     let content = Column::new()
         .width(Length::Fill)
         .height(Length::Fill)
@@ -110,7 +110,7 @@ pub fn view<'a>(state: &'a SyncState) -> Element<'a, Message> {
             &state.sync_status,
             state.sync_progress.as_ref(),
         ))
-        .push(close_button(state.close_hovered));
+        .push(button_row(state));
 
     let dialog_box = container(content)
         .width(Length::Fixed(sp(DIALOG_WIDTH)))
@@ -194,12 +194,67 @@ pub fn view<'a>(state: &'a SyncState) -> Element<'a, Message> {
         .into()
 }
 
-/// Builds the CLOSE button that closes the dialog.
+/// Builds the bottom button row: ABORT SYNC and CLEAR STATUS to the left of
+/// CLOSE.
 ///
-/// The border is teal by default and turns ORANGE while the pointer hovers
-/// over the button.
-fn close_button(hovered: bool) -> Element<'static, Message> {
-    let label = container(text("CLOSE").size(sp(TEXT_SIZE)).color(TEAL))
+/// ABORT SYNC appears only while a sync is running and stops it. CLEAR STATUS
+/// keeps its normal look while a dry run or sync is running but does not
+/// hover or respond, so a live process's output is never cleared.
+fn button_row(state: &SyncState) -> Element<'static, Message> {
+    let mut row = Row::new().spacing(sp(CONTENT_SPACING));
+
+    // ABORT SYNC appears only while a sync is running.
+    if state.abort_sync.is_some() {
+        row = row.push(dialog_button(
+            "ABORT SYNC",
+            state.abort_sync_hovered,
+            true,
+            Message::Sync(SyncMsg::AbortSyncPressed),
+            Message::Sync(SyncMsg::AbortSyncHovered(true)),
+            Message::Sync(SyncMsg::AbortSyncHovered(false)),
+        ));
+    }
+
+    row = row
+        .push(dialog_button(
+            "CLEAR STATUS",
+            state.clear_status_hovered,
+            state.active_runs == 0,
+            Message::Sync(SyncMsg::ClearStatusPressed),
+            Message::Sync(SyncMsg::ClearStatusHovered(true)),
+            Message::Sync(SyncMsg::ClearStatusHovered(false)),
+        ))
+        .push(dialog_button(
+            "CLOSE",
+            state.close_hovered,
+            true,
+            Message::CloseSyncSiloDialog,
+            Message::Sync(SyncMsg::CloseHovered(true)),
+            Message::Sync(SyncMsg::CloseHovered(false)),
+        ));
+
+    container(row)
+        .width(Length::Fill)
+        .align_x(iced::alignment::Horizontal::Right)
+        .into()
+}
+
+/// Builds a dialog action button; CLEAR STATUS and CLOSE share this look.
+///
+/// The text is teal and the border DETAIL by default; the border turns ORANGE
+/// while the pointer hovers. When `enabled` is false, the button keeps its
+/// normal look but does not hover or respond.
+fn dialog_button(
+    label: &'static str,
+    hovered: bool,
+    enabled: bool,
+    on_press: Message,
+    on_enter: Message,
+    on_exit: Message,
+) -> Element<'static, Message> {
+    let border_color = if enabled && hovered { ORANGE } else { DETAIL };
+
+    let label = container(text(label).size(sp(TEXT_SIZE)).color(TEAL))
         .height(Length::Fixed(sp(CLOSE_HEIGHT)))
         .align_x(iced::alignment::Horizontal::Center)
         .align_y(iced::alignment::Vertical::Center)
@@ -212,17 +267,20 @@ fn close_button(hovered: bool) -> Element<'static, Message> {
         .style(move |_| container::Style {
             background: None,
             border: Border {
-                color: if hovered { ORANGE } else { DETAIL },
+                color: border_color,
                 width: sp(BORDER_WIDTH),
                 radius: 0.0.into(),
             },
             ..container::Style::default()
         });
 
-    MouseArea::new(label)
-        .on_press(Message::CloseSyncSiloDialog)
-        .on_enter(Message::Sync(SyncMsg::CloseHovered(true)))
-        .on_exit(Message::Sync(SyncMsg::CloseHovered(false)))
-        .interaction(mouse::Interaction::Pointer)
-        .into()
+    let mut area = MouseArea::new(label);
+    if enabled {
+        area = area
+            .on_press(on_press)
+            .on_enter(on_enter)
+            .on_exit(on_exit)
+            .interaction(mouse::Interaction::Pointer);
+    }
+    area.into()
 }
