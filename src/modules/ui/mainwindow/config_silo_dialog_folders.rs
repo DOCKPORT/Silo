@@ -168,7 +168,7 @@ fn record(first_error: &Mutex<Option<io::Error>>, err: io::Error) {
 /// Format a byte count as a human-readable size string.
 ///
 /// Uses binary units: 1 KiB = 1024 bytes. A zero count renders as `0 B`;
-/// everything else prints with two decimal places and a space.
+/// everything else prints with one decimal place and a space.
 fn human_size(bytes: u64) -> String {
     const UNITS: [&str; 6] = ["B", "KiB", "MiB", "GiB", "TiB", "PiB"];
 
@@ -183,7 +183,7 @@ fn human_size(bytes: u64) -> String {
         unit += 1;
     }
 
-    format!("{value:.2} {}", UNITS[unit])
+    format!("{value:.1} {}", UNITS[unit])
 }
 
 /// The folder's total data size as a human-readable string.

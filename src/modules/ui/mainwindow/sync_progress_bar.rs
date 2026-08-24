@@ -82,7 +82,7 @@ pub fn view(progress: f32, center_y: f32, left: f32) -> Element<'static, Message
         .spacing(sp(LABEL_SPACING))
         .push(text("ETA: 00:00:00").size(sp(TEXT_SIZE)).color(TEAL))
         .push(super::action_area::separator())
-        .push(text("1.99GiB/5.46GiB").size(sp(TEXT_SIZE)).color(TEAL))
+        .push(text("2.0 GiB/5.5 GiB").size(sp(TEXT_SIZE)).color(TEAL))
         .push(super::action_area::separator())
         .push(text("25.55%").size(sp(TEXT_SIZE)).color(TEAL))
         .push(bar);

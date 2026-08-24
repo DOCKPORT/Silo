@@ -103,7 +103,7 @@ pub struct SiloApp {
     /// Whether the silo has at least one source folder in `silo_data_paths`.
     /// Drives the live STATUS label in the action area.
     is_populated: bool,
-    /// The human-readable total silo size, for example "5.46 GiB". Holds "--"
+    /// The human-readable total silo size, for example "5.5 GiB". Holds "--"
     /// while the first computation runs, and "N/A" when a source folder
     /// cannot be read.
     silo_size: String,
