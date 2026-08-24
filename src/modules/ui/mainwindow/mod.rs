@@ -175,15 +175,10 @@ fn update(state: &mut SiloApp, message: Message) -> Task<Message> {
 fn view(state: &SiloApp) -> iced::Element<'_, Message> {
     let base = container(text("")).width(Length::Fill).height(Length::Fill);
 
-    // The live STATUS label derives from the loaded source folders, so it is
-    // true exactly when at least one folder exists.
-    let is_populated = !state.config.folder_paths.is_empty();
-
     let mut stack = Stack::new().push(base).push(action_area::view(
         state.logo_hovered,
         state.config_hovered,
         state.sync_hovered,
-        is_populated,
         &state.silo_size,
     ));
 

@@ -194,31 +194,19 @@ pub(super) fn separator() -> Element<'static, Message> {
         .into()
 }
 
-/// Builds the status labels, vertically centered above the center line.
+/// Builds the SILO SIZE label, vertically centered above the center line.
 ///
 /// The label row is centered horizontally in the window and vertically in
-/// the space between the top orange rule and the center line. `is_populated`
-/// selects the live STATUS label: "POPULATED" when the silo has at least one
-/// source folder, "NOT POPULATED" otherwise. `silo_size` is the live total
-/// size label, for example "5.5 GiB".
-fn status_labels(is_populated: bool, silo_size: &str) -> Element<'static, Message> {
+/// the space between the top orange rule and the center line. `silo_size`
+/// is the live total size label, for example "5.5 GiB".
+fn status_labels(silo_size: &str) -> Element<'static, Message> {
     let region_top = TOP_GAP + LINE_THICKNESS;
     let region_bottom = band_center() - DETAIL_LINE_THICKNESS / 2.0;
     let label_top = region_top + (region_bottom - region_top - TEXT_SIZE) / 2.0;
 
-    let status = if is_populated {
-        "STATUS: POPULATED"
-    } else {
-        "STATUS: NOT POPULATED"
-    };
-
     let row = Row::new()
         .align_y(iced::alignment::Vertical::Center)
         .spacing(sp(LABEL_SPACING))
-        .push(status_label(status.to_string()))
-        .push(separator())
-        .push(status_label("LAST SYNC: --/--/----".to_string()))
-        .push(separator())
         .push(status_label(format!("SILO SIZE: {silo_size}")));
 
     container(row)
@@ -329,21 +317,19 @@ fn action_buttons(config_hovered: bool, sync_hovered: bool) -> Element<'static, 
 /// Builds the ActionArea overlay element.
 ///
 /// Returns a full-size, transparent layer holding two orange rules, the logo,
-/// a thin grey detail line, the status labels, and the two action buttons.
+/// a thin grey detail line, the SILO SIZE label, and the two action buttons.
 /// The first rule sits `TOP_GAP` from the top of the window; the second sits
 /// `LINE_SPACING` below it. The logo is placed at the far left, centered
 /// between the two rules, and the detail line runs from just right of the
-/// logo to the right edge, also centered. The status labels sit above the
+/// logo to the right edge, also centered. The SILO SIZE label sits above the
 /// center line. The CONFIG. SILO and SYNC SILO buttons share one row below
-/// the center line, centered horizontally. `is_populated` and `silo_size`
-/// feed the live STATUS and SILO SIZE labels. Everything is positioned via
-/// top/left padding so it stays above the base background and below the
-/// scanlines.
+/// the center line, centered horizontally. `silo_size` feeds the live
+/// SILO SIZE label. Everything is positioned via top/left padding so it
+/// stays above the base background and below the scanlines.
 pub fn view(
     logo_hovered: bool,
     config_hovered: bool,
     sync_hovered: bool,
-    is_populated: bool,
     silo_size: &str,
 ) -> Element<'static, Message> {
     Stack::new()
@@ -351,7 +337,7 @@ pub fn view(
         .push(rule_at(TOP_GAP + LINE_SPACING))
         .push(logo(logo_hovered))
         .push(detail_line())
-        .push(status_labels(is_populated, silo_size))
+        .push(status_labels(silo_size))
         .push(action_buttons(config_hovered, sync_hovered))
         .into()
 }

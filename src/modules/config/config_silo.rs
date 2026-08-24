@@ -2,18 +2,17 @@
 //!
 //! This module persists the silo settings under `~/.local/share/silo/` in a
 //! SQLite database. It stores settings only: selected source folder paths,
-//! exclude patterns, the rsync destination path, and the last sync timestamp.
-//! It never stores the data files or folders themselves; rsync reads the real
-//! data live from disk at sync time.
+//! exclude patterns, and the rsync destination path. It never stores the data
+//! files or folders themselves; rsync reads the real data live from disk at
+//! sync time.
 //!
 //! The database uses one table per setting:
 //! - `silo_data_paths`: one row per selected source folder
 //! - `exclude`: one row per exclude pattern
-//! - `last_sync`: a single row holding the last sync time in Unix epoch seconds
 //! - `rsync_dest_path`: a single row holding the rsync destination path
 //!
 //! Call [`init`] once at startup. It creates the directory, the database file,
-//! the four tables, and the singleton rows. It is idempotent, so calling it on
+//! the three tables, and the singleton row. It is idempotent, so calling it on
 //! every launch creates the store when it is missing and never deletes existing
 //! settings.
 
@@ -43,8 +42,6 @@ pub struct SiloSettings {
     pub silo_data_paths: Vec<PathBuf>,
     /// Exclude patterns. Stored one row per pattern in `exclude`.
     pub excludes: Vec<String>,
-    /// Last sync time in Unix epoch seconds, or `None` before the first sync.
-    pub last_sync_timestamp: Option<i64>,
     /// Destination folder for rsync, or `None` until the user picks one.
     pub rsync_dest_path: Option<PathBuf>,
 }
@@ -129,7 +126,7 @@ fn init_at(dir: &Path) -> Result<PathBuf, ConfigError> {
     Ok(db_path)
 }
 
-/// Create the four settings tables and seed the two singleton rows.
+/// Create the three settings tables and seed the singleton row.
 ///
 /// `CREATE TABLE IF NOT EXISTS` makes this safe to run on every launch.
 fn create_schema(conn: &Connection) -> Result<(), ConfigError> {
@@ -146,16 +143,10 @@ fn create_schema(conn: &Connection) -> Result<(), ConfigError> {
             pattern TEXT NOT NULL
         );
 
-        CREATE TABLE IF NOT EXISTS last_sync (
-            timestamp INTEGER
-        );
-
         CREATE TABLE IF NOT EXISTS rsync_dest_path (
             path TEXT
         );
 
-        INSERT INTO last_sync (timestamp)
-            SELECT NULL WHERE NOT EXISTS (SELECT 1 FROM last_sync);
         INSERT INTO rsync_dest_path (path)
             SELECT NULL WHERE NOT EXISTS (SELECT 1 FROM rsync_dest_path);
         "#,
@@ -181,14 +172,6 @@ fn load_from(db: &Path) -> Result<SiloSettings, ConfigError> {
 
     let excludes = load_text_column(&conn, "exclude", "pattern")?;
 
-    let last_sync_timestamp = conn
-        .query_row("SELECT timestamp FROM last_sync", [], |row| {
-            let value: Option<i64> = row.get(0)?;
-            Ok(value)
-        })
-        .optional()?
-        .flatten();
-
     let rsync_dest_path = conn
         .query_row("SELECT path FROM rsync_dest_path", [], |row| {
             let value: Option<String> = row.get(0)?;
@@ -201,7 +184,6 @@ fn load_from(db: &Path) -> Result<SiloSettings, ConfigError> {
     Ok(SiloSettings {
         silo_data_paths,
         excludes,
-        last_sync_timestamp,
         rsync_dest_path,
     })
 }
@@ -257,14 +239,8 @@ fn save_to(db: &Path, settings: &SiloSettings) -> Result<(), ConfigError> {
         }
     }
 
-    // Replace the two singleton rows. Deleting then inserting keeps exactly
-    // one row in each table.
-    tx.execute("DELETE FROM last_sync", [])?;
-    tx.execute(
-        "INSERT INTO last_sync (timestamp) VALUES (?1)",
-        [settings.last_sync_timestamp],
-    )?;
-
+    // Replace the singleton row. Deleting then inserting keeps exactly one
+    // row in the table.
     let dest_path = settings
         .rsync_dest_path
         .as_ref()
