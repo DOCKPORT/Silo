@@ -6,12 +6,13 @@
 
 use std::path::PathBuf;
 
-use iced::Task;
+use iced::{Task, stream};
 
-use crate::modules::{config, sync_engine};
+use crate::modules::{config, silo_size, sync_engine};
 
 use super::app::{open_in_file_explorer, pick_folder, set_hovered};
 use super::status_format::{StatusKind, StatusLine, dry_run_result_lines, sync_result_lines};
+use super::sync_progress::{SyncProgress, parse_line};
 use super::{Message, SiloApp};
 
 /// The Sync Silo dialog state.
@@ -39,6 +40,8 @@ pub(super) struct SyncState {
     pub(super) sync_run_hovered: bool,
     /// The lines shown in the Sync dialog STATUS box, newest last.
     pub(super) sync_status: Vec<StatusLine>,
+    /// The live progress of the current sync run, `None` when idle.
+    pub(super) sync_progress: Option<SyncProgress>,
 }
 
 impl SyncState {
@@ -51,6 +54,7 @@ impl SyncState {
         self.dest_menu_hovered = false;
         self.dry_run_hovered = false;
         self.sync_run_hovered = false;
+        self.sync_progress = None;
     }
 }
 
@@ -88,6 +92,8 @@ pub(super) enum SyncMsg {
     DryRunFinished(Vec<StatusLine>),
     /// The pointer entered or left the SYNC button in the dialog.
     SyncRunHovered(bool),
+    /// A live progress update from the running sync.
+    Progress(SyncProgress),
     /// The SYNC button was pressed; starts the sync status flow.
     SyncRunPressed,
     /// The sync is ready to run; carries the plan the engine task will use.
@@ -111,6 +117,7 @@ pub(super) fn open(state: &mut SiloApp) -> Task<Message> {
     };
     // Start with a fresh STATUS box on every open.
     state.sync.sync_status.clear();
+    state.sync.sync_progress = None;
     Task::none()
 }
 
@@ -242,12 +249,63 @@ pub(super) fn update(state: &mut SiloApp, message: SyncMsg) -> Task<Message> {
                 kind: StatusKind::Info,
                 text: "Sync in progress...".to_string(),
             });
-            Task::perform(async move { sync_engine::sync(&plan) }, |result| {
-                Message::Sync(SyncMsg::SyncFinished(sync_result_lines(result)))
-            })
+            state.sync.sync_progress = None;
+
+            // The runner thread streams rsync's progress lines over the
+            // stream, then sends the final outcome lines. The stream ends
+            // when the thread drops the sender.
+            let stream = stream::channel(
+                64,
+                |mut sender: iced::futures::channel::mpsc::Sender<SyncMsg>| async move {
+                    // Keep this closure pending until the runner thread ends.
+                    // If it completes early, `select` drops the receiver and no
+                    // progress reaches the UI. The thread owns the sender; the
+                    // stream ends when the thread drops it.
+                    let (done_tx, done_rx) = iced::futures::channel::oneshot::channel();
+                    let _ = std::thread::spawn(move || {
+                        // The total transfer size is fixed up front, from the
+                        // same sources and excludes as the sync plan. It
+                        // reuses the SILO SIZE computation, so the total stays
+                        // stable for the whole run.
+                        let total =
+                            silo_size::total_size_bytes(&plan.sources, &plan.excludes).unwrap_or(0);
+                        let mut prev: Option<SyncProgress> = None;
+                        let result = sync_engine::sync_streaming(&plan, |line| {
+                            if let Some(progress) = parse_line(line, prev.as_ref(), total) {
+                                prev = Some(progress);
+                                let _ = sender.try_send(SyncMsg::Progress(progress));
+                            }
+                        });
+
+                        // The final outcome must not be lost, so retry briefly when
+                        // the stream channel is momentarily full. Progress updates
+                        // may drop; the final lines cannot.
+                        let mut final_msg = SyncMsg::SyncFinished(sync_result_lines(result));
+                        loop {
+                            match sender.try_send(final_msg) {
+                                Ok(()) => break,
+                                Err(err) if err.is_full() => {
+                                    final_msg = err.into_inner();
+                                    std::thread::sleep(std::time::Duration::from_millis(20));
+                                }
+                                Err(_) => break,
+                            }
+                        }
+                        let _ = done_tx.send(());
+                    });
+                    let _ = done_rx.await;
+                },
+            );
+
+            Task::run(stream, Message::Sync)
         }
         SyncMsg::SyncFinished(lines) => {
             state.sync.sync_status.extend(lines);
+            state.sync.sync_progress = None;
+            Task::none()
+        }
+        SyncMsg::Progress(progress) => {
+            state.sync.sync_progress = Some(progress);
             Task::none()
         }
     }

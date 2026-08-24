@@ -1,40 +1,48 @@
-//! SyncProgressBar: the sync progress bar overlay.
+//! SyncProgressBar: the sync progress bar for the Sync dialog STATUS box.
 //!
 //! Renders a thin progress track with a filled portion that shows the current
-//! sync progress, followed by the status labels and square separators. The
-//! caller supplies the vertical center and left offset (in reference pixels)
-//! so the shared layout constants stay owned by the action area. The bar is
-//! composed into the main window through the action area's [`Stack`].
+//! sync progress, followed by the status labels and square separators. The bar
+//! is a normal flow widget: the Sync dialog composes it into the STATUS box,
+//! below the divider and above the text lines.
 
 use iced::widget::{Row, Stack, container, text};
-use iced::{Element, Length, Padding};
+use iced::{Element, Length};
 
 use crate::modules::ui::scaling::sp;
 use crate::modules::ui::theme::{DETAIL, TEAL};
 
 use super::Message;
+use super::sync_progress::SyncProgress;
 
 /// The height of the progress bar track, in reference pixels.
-pub const BAR_HEIGHT: f32 = 20.0;
+pub const BAR_HEIGHT: f32 = 13.0;
 
 /// The width of the progress bar track, in reference pixels.
-pub const BAR_WIDTH: f32 = 420.0;
+pub const BAR_WIDTH: f32 = 175.0;
 
 /// The font size of the labels next to the bar, in reference pixels.
-const TEXT_SIZE: f32 = 30.0;
+/// Matches the STATUS box line text size.
+const TEXT_SIZE: f32 = 18.0;
 
 /// The horizontal spacing between the bar and the labels, in reference px.
-/// Matches the status label row above (action area's `LABEL_SPACING`).
-const LABEL_SPACING: f32 = 60.0;
+const LABEL_SPACING: f32 = 30.0;
 
 /// Builds the sync progress bar.
 ///
-/// `progress` is the fraction of the bar that is filled, clamped to
-/// `0.0..=1.0`. `center_y` and `left` are reference-pixel offsets: the row
-/// (bar plus labels) is vertically centered on `center_y` and starts at
-/// `left`.
-pub fn view(progress: f32, center_y: f32, left: f32) -> Element<'static, Message> {
-    let progress = progress.clamp(0.0, 1.0);
+/// `progress` is the live sync progress, or `None` when no sync is running.
+/// When idle, the labels show placeholders and the bar stays empty. The bar
+/// and its labels are horizontally centered in the Sync dialog STATUS box.
+pub fn view(progress: Option<&SyncProgress>) -> Element<'static, Message> {
+    // The live labels, or placeholders while no sync is running.
+    let (fraction, eta, sizes, percent) = match progress {
+        Some(p) => (p.fraction(), p.eta_text(), p.sizes_text(), p.percent_text()),
+        None => (
+            0.0,
+            "ETA: --".to_string(),
+            "-- / --".to_string(),
+            "--".to_string(),
+        ),
+    };
 
     // The track: the full bar in the detail teal-blue.
     let track = container(text(""))
@@ -47,7 +55,7 @@ pub fn view(progress: f32, center_y: f32, left: f32) -> Element<'static, Message
 
     // The fill: a bright teal portion showing the sync progress.
     let fill = container(text(""))
-        .width(Length::Fixed(sp(BAR_WIDTH * progress)))
+        .width(Length::Fixed(sp(BAR_WIDTH * fraction)))
         .height(Length::Fixed(sp(BAR_HEIGHT)))
         .style(|_| container::Style {
             background: Some(TEAL.into()),
@@ -62,30 +70,20 @@ pub fn view(progress: f32, center_y: f32, left: f32) -> Element<'static, Message
         .push(track)
         .push(fill);
 
-    // The bar, the labels, and the square separators in one centered row.
-    let row = Row::new()
-        .align_y(iced::alignment::Vertical::Center)
-        .spacing(sp(LABEL_SPACING))
-        .push(text("ETA: 00:00:00").size(sp(TEXT_SIZE)).color(TEAL))
-        .push(super::action_area::separator())
-        .push(text("2.0 GiB/5.5 GiB").size(sp(TEXT_SIZE)).color(TEAL))
-        .push(super::action_area::separator())
-        .push(text("25.55%").size(sp(TEXT_SIZE)).color(TEAL))
-        .push(bar);
-
-    // The text line height dominates the row height. Center the whole row on
-    // `center_y` so the bar and labels sit together in the band.
-    let row_height = TEXT_SIZE * 1.2;
-    let top = center_y - row_height / 2.0;
-
-    container(row)
-        .width(Length::Fill)
-        .height(Length::Fill)
-        .padding(Padding {
-            top: sp(top),
-            left: sp(left),
-            bottom: 0.0,
-            right: 0.0,
-        })
-        .into()
+    // The bar, the labels, and the square separators in one row, centered in
+    // the STATUS box.
+    container(
+        Row::new()
+            .align_y(iced::alignment::Vertical::Center)
+            .spacing(sp(LABEL_SPACING))
+            .push(text(eta).size(sp(TEXT_SIZE)).color(TEAL))
+            .push(super::action_area::separator())
+            .push(text(sizes).size(sp(TEXT_SIZE)).color(TEAL))
+            .push(super::action_area::separator())
+            .push(text(percent).size(sp(TEXT_SIZE)).color(TEAL))
+            .push(bar),
+    )
+    .width(Length::Fill)
+    .align_x(iced::alignment::Horizontal::Center)
+    .into()
 }

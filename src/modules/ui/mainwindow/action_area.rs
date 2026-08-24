@@ -326,18 +326,12 @@ pub fn view(
     let lower_top = band_center() + DETAIL_LINE_THICKNESS / 2.0;
     let lower_bottom = TOP_GAP + LINE_SPACING;
 
-    // The progress bar: centered in the lower band, left-aligned with the
-    // status labels.
-    let bar_center_y = lower_top + (lower_bottom - lower_top) / 2.0;
-    let bar_left = LOGO_LEFT_GAP + LOGO_SIZE + DETAIL_GAP;
-
     Stack::new()
         .push(rule_at(TOP_GAP))
         .push(rule_at(TOP_GAP + LINE_SPACING))
         .push(logo(logo_hovered))
         .push(detail_line())
         .push(status_labels(is_populated, silo_size))
-        .push(super::sync_progress_bar::view(0.25, bar_center_y, bar_left))
         .push(button_area(
             silo_button(
                 "CONFIG. SILO",

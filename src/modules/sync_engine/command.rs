@@ -43,6 +43,18 @@ pub(crate) fn build(plan: &SyncPlan) -> Command {
     cmd
 }
 
+/// Build a rsync `Command` for a real sync with live progress reporting.
+///
+/// Identical to [`build`], plus `--info=progress2`. rsync then writes one
+/// progress line to standard error per update: the bytes transferred, the
+/// percentage complete, the transfer rate, and an ETA. Progress stops when
+/// the transfer ends.
+pub(crate) fn build_progress(plan: &SyncPlan) -> Command {
+    let mut cmd = build(plan);
+    cmd.arg("--info=progress2");
+    cmd
+}
+
 /// Build a rsync `Command` for a dry run simulation.
 ///
 /// The command is identical to a real sync, with three extra flags:

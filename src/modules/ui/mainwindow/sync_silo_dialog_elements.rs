@@ -22,6 +22,7 @@ use crate::modules::ui::theme::{DETAIL, GREY, ORANGE, TEAL};
 
 use super::Message;
 use super::status_format::{StatusKind, StatusLine};
+use super::sync_progress::SyncProgress;
 use super::sync_silo_actions::SyncMsg;
 
 /// The width of the box borders, in reference pixels.
@@ -94,8 +95,10 @@ const FOLDER_ICON_BYTES: &[u8] = include_bytes!(concat!(
 /// remove menu is open. `dest_menu_hovered` reports whether the pointer is
 /// over that menu. `dry_run_hovered` reports whether the pointer is over the
 /// DRY-RUN button. `sync_run_hovered` reports whether the pointer is over the
-/// SYNC button. `status` holds the lines shown in the STATUS box. The source
-/// folders and excludes panels are added in later steps.
+/// SYNC button. `status` holds the lines shown in the STATUS box. `progress`
+/// is the live sync progress shown at the top of the STATUS box, or `None`
+/// when no sync is running. The source folders and excludes panels are added
+/// in later steps.
 pub fn view<'a>(
     dest_path: Option<&'a Path>,
     dest_plus_hovered: bool,
@@ -105,6 +108,7 @@ pub fn view<'a>(
     dry_run_hovered: bool,
     sync_run_hovered: bool,
     status: &'a [StatusLine],
+    progress: Option<&SyncProgress>,
 ) -> Element<'a, Message> {
     Column::new()
         .width(Length::Fill)
@@ -118,7 +122,7 @@ pub fn view<'a>(
             dest_menu_hovered,
         ))
         .push(run_buttons(dry_run_hovered, sync_run_hovered))
-        .push(status_box(status))
+        .push(status_box(status, progress))
         .into()
 }
 
@@ -357,10 +361,14 @@ fn run_buttons(dry_run_hovered: bool, sync_run_hovered: bool) -> Element<'static
 
 /// Builds the STATUS box: a bordered rectangle the same width as the
 /// destination box but filling the remaining dialog height. It shows the
-/// "STATUS" title at the top left with a divider line below, and renders
-/// `lines` below the divider as a scrollable list. Each line is colored by
+/// "STATUS" title at the top left with a divider line below, then the sync
+/// progress bar, then `lines` as a scrollable list. Each line is colored by
 /// its kind: grey for progress, teal for success, orange for failure.
-fn status_box<'a>(lines: &'a [StatusLine]) -> Element<'a, Message> {
+/// `progress` is the live sync progress, or `None` when no sync is running.
+fn status_box<'a>(
+    lines: &'a [StatusLine],
+    progress: Option<&SyncProgress>,
+) -> Element<'a, Message> {
     let header: Element<'a, Message> = Row::new()
         .width(Length::Fill)
         .height(Length::Fixed(sp(HEADER_HEIGHT)))
@@ -383,6 +391,7 @@ fn status_box<'a>(lines: &'a [StatusLine]) -> Element<'a, Message> {
         .spacing(sp(TITLE_SPACING))
         .push(header)
         .push(divider())
+        .push(super::sync_progress_bar::view(progress))
         .push(scrollbar::vertical(list));
 
     container(content)

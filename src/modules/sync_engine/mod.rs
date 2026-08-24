@@ -73,11 +73,14 @@ pub enum SyncOutcome {
     },
 }
 
-/// Run a sync and report the outcome.
+/// Run a sync while streaming rsync's standard error line by line.
 ///
-/// Validates the plan first, then runs rsync and maps its exit code to a
-/// [`SyncOutcome`]. Returns [`SyncError`] for pre-flight validation failures
-/// and process-level errors.
-pub fn sync(plan: &SyncPlan) -> Result<SyncOutcome, SyncError> {
-    runner::sync(plan)
+/// `on_line` receives every line rsync writes to standard error, in order,
+/// while the process runs. Returns the [`SyncOutcome`] with the progress
+/// lines filtered out of the reported stderr.
+pub fn sync_streaming(
+    plan: &SyncPlan,
+    on_line: impl FnMut(&str),
+) -> Result<SyncOutcome, SyncError> {
+    runner::sync_streaming(plan, on_line)
 }

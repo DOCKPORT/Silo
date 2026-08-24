@@ -15,6 +15,7 @@ mod config_silo_dialog_elements;
 mod config_silo_dialog_exclude;
 mod config_silo_dialog_folders;
 mod status_format;
+mod sync_progress;
 mod sync_progress_bar;
 mod sync_silo_actions;
 mod sync_silo_dialog;

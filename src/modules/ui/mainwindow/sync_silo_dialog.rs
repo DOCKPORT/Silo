@@ -108,6 +108,7 @@ pub fn view<'a>(state: &'a SyncState) -> Element<'a, Message> {
             state.dry_run_hovered,
             state.sync_run_hovered,
             &state.sync_status,
+            state.sync_progress.as_ref(),
         ))
         .push(close_button(state.close_hovered));
 
