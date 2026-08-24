@@ -92,9 +92,18 @@ pub(super) fn open_in_file_explorer(path: &Path) {
 /// The application's subscriptions.
 ///
 /// Listens for window resize events so the scale factor stays in sync with the
-/// live client area.
+/// live client area, and for window focus so the SILO SIZE label refreshes
+/// when the user returns to the app.
 fn subscription(_state: &SiloApp) -> Subscription<Message> {
-    iced::window::resize_events().map(|(_id, size)| Message::WindowResized(size))
+    Subscription::batch([
+        iced::window::resize_events().map(|(_id, size)| Message::WindowResized(size)),
+        // Refresh the SILO SIZE label when the window regains focus, so files
+        // added to the source while the app was hidden show up right away.
+        iced::window::events().filter_map(|(_id, event)| match event {
+            iced::window::Event::Focused => Some(Message::RefreshSiloSize),
+            _ => None,
+        }),
+    ])
 }
 
 /// Runs the Silo main window.

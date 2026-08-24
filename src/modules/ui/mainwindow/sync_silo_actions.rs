@@ -301,12 +301,17 @@ pub(super) fn update(state: &mut SiloApp, message: SyncMsg) -> Task<Message> {
                     // stream ends when the thread drops it.
                     let (done_tx, done_rx) = iced::futures::channel::oneshot::channel();
                     let _ = std::thread::spawn(move || {
-                        // The total transfer size is fixed up front, from the
-                        // same sources and excludes as the sync plan. It
-                        // reuses the SILO SIZE computation, so the total stays
-                        // stable for the whole run.
-                        let total =
-                            silo_size::total_size_bytes(&plan.sources, &plan.excludes).unwrap_or(0);
+                        // The total transfer size is fixed up front: the delta
+                        // rsync will actually send, summed from the source
+                        // files that are missing at the destination or differ
+                        // in size or modification time. It matches the dry
+                        // run's "Total transferred file size".
+                        let total = silo_size::sync_delta_bytes(
+                            &plan.sources,
+                            &plan.excludes,
+                            &plan.destination,
+                        )
+                        .unwrap_or(0);
                         let mut prev: Option<SyncProgress> = None;
                         let result = sync_engine::sync_streaming(&plan, &abort, |line| {
                             if let Some(progress) = parse_line(line, prev.as_ref(), total) {

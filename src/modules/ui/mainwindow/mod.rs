@@ -94,6 +94,9 @@ enum Message {
     CloseSyncSiloDialog,
     /// A background total-size computation finished; carries the size label.
     SiloSizeComputed(String),
+    /// The window regained focus; refresh the total silo size in the
+    /// background so the label reflects files changed on disk.
+    RefreshSiloSize,
     /// The GitHub logo was pressed; opens the project page.
     OpenGithub,
     /// A no-op message used to absorb clicks.
@@ -153,6 +156,7 @@ fn update(state: &mut SiloApp, message: Message) -> Task<Message> {
             state.silo_size = label;
             Task::none()
         }
+        Message::RefreshSiloSize => silo_size_task(),
         Message::OpenGithub => {
             // Open the project page in the default browser.
             let _ = std::process::Command::new("xdg-open")

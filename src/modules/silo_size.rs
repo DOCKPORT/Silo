@@ -85,6 +85,41 @@ pub fn total_size_bytes(paths: &[PathBuf], excludes: &[String]) -> Result<u64, S
     Ok(total)
 }
 
+/// The size of the data that the next sync transfers to the destination.
+///
+/// Walks every source folder and sums the size of each non-excluded file
+/// that fails rsync's quick check against its mirror at the destination: the
+/// destination copy is missing, or its size or modification time differs.
+/// This is the delta that rsync reports as "Total transferred file size" in
+/// a dry run, so the sync progress bar measures the right total. Deletions
+/// and directory attribute changes transfer no file data.
+pub fn sync_delta_bytes(
+    sources: &[PathBuf],
+    excludes: &[String],
+    destination: &Path,
+) -> Result<u64, SiloSizeError> {
+    let mut total: u64 = 0;
+    for path in sources {
+        if !path.exists() {
+            return Err(SiloSizeError::PathDoesNotExist(path.to_path_buf()));
+        }
+        if !path.is_dir() {
+            return Err(SiloSizeError::PathNotADirectory(path.to_path_buf()));
+        }
+
+        // The destination mirrors each source folder under its own name, for
+        // example `/dest/<source folder>/<relative path>`.
+        let Some(folder) = path.file_name() else {
+            continue;
+        };
+        let dest_root = destination.join(folder);
+
+        walk_delta(path, &dest_root, excludes, &mut total)
+            .map_err(|err| SiloSizeError::Walk(path.to_path_buf(), err))?;
+    }
+    Ok(total)
+}
+
 /// The total silo size as a human-readable label.
 ///
 /// Calls [`compute`] and formats the result through [`human_size`]. Any error
@@ -175,6 +210,80 @@ fn walk(dir: &Path, excludes: &[String], total: &mut u64) -> io::Result<()> {
     }
 
     Ok(())
+}
+
+/// Recursively walk `dir` and add the size of every non-excluded file that
+/// the next sync will transfer to `dest_dir`.
+///
+/// A file transfers when its copy at `dest_dir` is missing or differs in
+/// size or modification time. Excluded directories are skipped entirely.
+/// Symlinks are skipped: they carry no file data.
+fn walk_delta(dir: &Path, dest_dir: &Path, excludes: &[String], total: &mut u64) -> io::Result<()> {
+    let entries = fs::read_dir(dir)?;
+
+    for entry in entries {
+        let entry = match entry {
+            Ok(entry) => entry,
+            Err(_) => continue,
+        };
+
+        let path = entry.path();
+        let name = entry.file_name();
+        let name_str = name.to_string_lossy();
+        let dest_path = dest_dir.join(&name);
+
+        let file_type = match entry.file_type() {
+            Ok(file_type) => file_type,
+            Err(_) => continue,
+        };
+
+        if file_type.is_dir() {
+            if is_excluded(&name_str, true, excludes) {
+                continue;
+            }
+            walk_delta(&path, &dest_path, excludes, total)?;
+        } else if file_type.is_file() {
+            if is_excluded(&name_str, false, excludes) {
+                continue;
+            }
+            if needs_transfer(&path, &dest_path) {
+                match fs::metadata(&path) {
+                    Ok(metadata) => *total += metadata.len(),
+                    Err(_) => continue,
+                }
+            }
+        }
+    }
+
+    Ok(())
+}
+
+/// True when rsync would transfer the file: the destination copy is missing,
+/// or its size or modification time differs.
+fn needs_transfer(source: &Path, dest: &Path) -> bool {
+    let Ok(dest_meta) = fs::metadata(dest) else {
+        return true;
+    };
+    if !dest_meta.is_file() {
+        return true;
+    }
+    let Ok(source_meta) = fs::metadata(source) else {
+        return true;
+    };
+    if source_meta.len() != dest_meta.len() {
+        return true;
+    }
+    mtime_secs(&source_meta) != mtime_secs(&dest_meta)
+}
+
+/// The modification time in whole seconds, matching rsync's quick check.
+fn mtime_secs(metadata: &fs::Metadata) -> u64 {
+    metadata
+        .modified()
+        .ok()
+        .and_then(|time| time.duration_since(std::time::UNIX_EPOCH).ok())
+        .map(|duration| duration.as_secs())
+        .unwrap_or(0)
 }
 
 /// Whether an entry is excluded by any pattern.

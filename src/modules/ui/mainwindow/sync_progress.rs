@@ -57,7 +57,9 @@ impl SyncProgress {
 
     /// The percent label, for example `36.36%`.
     pub(super) fn percent_text(&self) -> String {
-        format!("{:.2}%", self.percent())
+        // The delta estimate can slightly exceed the bytes rsync actually
+        // sends, so never display past 100%.
+        format!("{:.2}%", self.percent().min(100.0))
     }
 }
 
