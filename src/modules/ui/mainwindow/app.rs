@@ -12,6 +12,7 @@ use iced::{Subscription, Task, application};
 use crate::modules::{config, silo_analysis, silo_size};
 
 use super::app_icon;
+use super::silo_allocation_chart;
 use super::{Message, SiloApp, update, view};
 use crate::modules::ui::font;
 use crate::modules::ui::scaling::Scaling;
@@ -72,12 +73,28 @@ pub(super) fn silo_allocation_task() -> Task<Message> {
         async {
             match config::load() {
                 Ok(settings) => {
-                    silo_analysis::merged_file_types(&settings.silo_data_paths, &settings.excludes)
+                    silo_analysis::silo_allocation(&settings.silo_data_paths, &settings.excludes)
                 }
-                Err(_) => Vec::new(),
+                Err(_) => silo_analysis::Allocation::default(),
             }
         },
         Message::AllocationComputed,
+    )
+}
+
+/// Spawns a background task that prepares the file breakdown for one
+/// extension.
+///
+/// The task receives the extension's files, already filtered on the UI
+/// thread, and builds the prepared breakdown data off the UI thread. The
+/// result maps to `Message::BreakdownPrepared`.
+pub(super) fn prepare_breakdown_task(
+    files: Vec<silo_analysis::AllocationFile>,
+    extension: String,
+) -> Task<Message> {
+    Task::perform(
+        async move { silo_allocation_chart::prepare(&files, &extension) },
+        Message::BreakdownPrepared,
     )
 }
 

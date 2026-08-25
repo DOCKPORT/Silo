@@ -13,6 +13,8 @@ use iced::{Border, Element, Length, Padding};
 
 use crate::modules::silo_analysis::FileTypeStat;
 use crate::modules::ui::crosshatch;
+
+use super::silo_allocation_chart::PreparedBreakdown;
 use crate::modules::ui::scaling::sp;
 use crate::modules::ui::theme::GREY;
 
@@ -76,8 +78,20 @@ const BOTTOM_PAD: f32 = 30.0;
 /// width (minus the side padding) and height (minus the bottom padding), so it
 /// takes most of the space below the action area. `silo_size` is the live
 /// total size label; the empty-state group shows only while it reads `0 B`.
-/// `allocation` feeds the ALLOCATION box chart.
-pub fn view(silo_size: &str, allocation: &[FileTypeStat]) -> Element<'static, Message> {
+/// `allocation` feeds the ALLOCATION box chart; `expanded` is the prepared
+/// breakdown to show, if any; `pending` is the extension being prepared;
+/// `generation` lets the chart cache its subtree across frames;
+/// `scroll_offset` and `viewport_height` select the visible window of the
+/// virtualized chart.
+pub fn view<'a>(
+    silo_size: &'a str,
+    allocation: &'a [FileTypeStat],
+    expanded: Option<&'a PreparedBreakdown>,
+    pending: Option<&'a str>,
+    generation: u64,
+    scroll_offset: f32,
+    viewport_height: f32,
+) -> Element<'a, Message> {
     // The panel top: the bottom edge of the action area plus a gap.
     let top = super::action_area::content_bottom() + sp(ACTION_GAP);
 
@@ -136,7 +150,14 @@ pub fn view(silo_size: &str, allocation: &[FileTypeStat]) -> Element<'static, Me
             .spacing(sp(BOXES_SPACING))
             .push(analysis_box(
                 "ALLOCATION",
-                super::silo_allocation_chart::view(allocation),
+                super::silo_allocation_chart::view(
+                    allocation,
+                    expanded,
+                    pending,
+                    generation,
+                    scroll_offset,
+                    viewport_height,
+                ),
             ))
             .push(analysis_box("STATS", text("").into()));
         content = content.push(boxes_row);
@@ -176,7 +197,7 @@ pub fn view(silo_size: &str, allocation: &[FileTypeStat]) -> Element<'static, Me
 /// Builds one analysis box: a bordered rectangle with the given title at the
 /// top left and a divider line below it. `body` fills the area below the
 /// divider; the box fills the available space.
-fn analysis_box(title: &'static str, body: Element<'static, Message>) -> Element<'static, Message> {
+fn analysis_box<'a>(title: &'static str, body: Element<'a, Message>) -> Element<'a, Message> {
     let header: Element<'static, Message> = Row::new()
         .width(Length::Fill)
         .height(Length::Fixed(sp(HEADER_HEIGHT)))

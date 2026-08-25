@@ -7,6 +7,7 @@
 //! Groups are ordered by total bytes descending.
 
 use std::collections::BTreeMap;
+use std::path::Path;
 
 use serde::Serialize;
 
@@ -14,6 +15,16 @@ use super::FileEntry;
 
 /// The reserved extension name for files that have no extension.
 const NO_EXTENSION: &str = "no-extension";
+
+/// The extension of `path` without the dot, or the reserved `no-extension`
+/// name when the path has no extension.
+pub(crate) fn extension_of(path: &Path) -> String {
+    path.extension()
+        .and_then(|e| e.to_str())
+        .filter(|e| !e.is_empty())
+        .map(|e| e.to_string())
+        .unwrap_or_else(|| NO_EXTENSION.to_string())
+}
 
 /// Statistics for one file type (grouped by file extension).
 #[derive(Debug, Clone, Serialize)]
@@ -38,13 +49,7 @@ pub(crate) fn compute_file_types(files: &[FileEntry], total_size_bytes: u64) -> 
     let mut groups: BTreeMap<String, (u64, u64)> = BTreeMap::new();
 
     for file in files {
-        let extension = file
-            .relative_path
-            .extension()
-            .and_then(|e| e.to_str())
-            .filter(|e| !e.is_empty())
-            .map(|e| e.to_string())
-            .unwrap_or_else(|| NO_EXTENSION.to_string());
+        let extension = extension_of(&file.relative_path);
 
         let entry = groups.entry(extension).or_insert((0, 0));
         entry.0 += 1;

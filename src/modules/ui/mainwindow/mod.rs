@@ -23,16 +23,19 @@ mod sync_silo_actions;
 mod sync_silo_dialog;
 mod sync_silo_dialog_elements;
 
+use std::collections::BTreeMap;
+
 use iced::widget::{Stack, container, text};
 use iced::{Length, Size, Task};
 
-use crate::modules::silo_analysis::FileTypeStat;
+use crate::modules::silo_analysis::{Allocation, AllocationFile};
 
 use super::scaling::Scaling;
 use super::scanlines;
 
-use app::{set_hovered, silo_allocation_task, silo_size_task};
+use app::{prepare_breakdown_task, set_hovered, silo_allocation_task, silo_size_task};
 use config_silo_actions::{ConfigMsg, ConfigState};
+use silo_allocation_chart::PreparedBreakdown;
 use sync_silo_actions::{SyncMsg, SyncState};
 
 /// The Silo application state.
@@ -60,10 +63,26 @@ pub struct SiloApp {
     /// while the first computation runs, and "N/A" when a source folder
     /// cannot be read.
     silo_size: String,
-    /// The file-type allocation of the silo, ordered by total bytes
-    /// descending. Empty while the background computation runs or when the
-    /// silo is empty.
-    allocation: Vec<FileTypeStat>,
+    /// The file-type allocation of the silo: the per-extension summary and
+    /// the files behind it. Empty while the background computation runs or
+    /// when the silo is empty.
+    allocation: Allocation,
+    /// The extension whose file breakdown is currently expanded in the
+    /// ALLOCATION chart, or `None`.
+    expanded_extension: Option<String>,
+    /// The extension whose breakdown is being prepared in the background, or
+    /// `None`.
+    pending_extension: Option<String>,
+    /// The prepared breakdowns, cached in memory so re-expanding an extension
+    /// is instant.
+    prepared: BTreeMap<String, PreparedBreakdown>,
+    /// Bumps whenever the chart data changes, so the lazy ALLOCATION chart
+    /// knows when to rebuild its cached subtree.
+    allocation_generation: u64,
+    /// The current vertical scroll offset of the ALLOCATION chart, in pixels.
+    breakdown_scroll_offset: f32,
+    /// The current viewport height of the ALLOCATION chart, in pixels.
+    breakdown_viewport_height: f32,
     /// The Config Silo dialog state: the folder and exclude rows plus their
     /// interaction flags.
     config: ConfigState,
@@ -103,8 +122,22 @@ enum Message {
     /// A background total-size computation finished; carries the size label.
     SiloSizeComputed(String),
     /// A background file-type allocation computation finished; carries the
-    /// per-extension statistics.
-    AllocationComputed(Vec<FileTypeStat>),
+    /// per-extension statistics and the files behind them.
+    AllocationComputed(Allocation),
+    /// An extension row in the ALLOCATION chart was pressed; toggles its file
+    /// breakdown.
+    AllocationRowPressed(String),
+    /// A file breakdown finished preparing in the background; carries the
+    /// prepared data.
+    BreakdownPrepared(PreparedBreakdown),
+    /// The ALLOCATION chart scrolled; carries the new absolute offset and
+    /// viewport height so the virtualized list can pick its visible window.
+    BreakdownScrolled {
+        /// The vertical scroll offset, in pixels.
+        offset: f32,
+        /// The visible viewport height, in pixels.
+        viewport_height: f32,
+    },
     /// The window regained focus; refresh the total silo size in the
     /// background so the label reflects files changed on disk.
     RefreshSiloSize,
@@ -168,8 +201,60 @@ fn update(state: &mut SiloApp, message: Message) -> Task<Message> {
             state.silo_size = label;
             Task::none()
         }
-        Message::AllocationComputed(file_types) => {
-            state.allocation = file_types;
+        Message::AllocationComputed(allocation) => {
+            state.allocation = allocation;
+            state.allocation_generation += 1;
+            // The new data invalidates the prepared breakdowns. The chart
+            // keeps its scroll position and clamps to the new content.
+            state.prepared.clear();
+            state.expanded_extension = None;
+            state.pending_extension = None;
+            Task::none()
+        }
+        Message::AllocationRowPressed(extension) => {
+            // Pressing the open row collapses it. An already-prepared row
+            // expands instantly from the cache; any other row is prepared in
+            // the background and expands when the data is ready. The chart
+            // keeps its scroll position, so the clicked row stays on screen.
+            let is_open = state.expanded_extension.as_deref() == Some(extension.as_str())
+                || state.pending_extension.as_deref() == Some(extension.as_str());
+            if is_open {
+                state.expanded_extension = None;
+                state.pending_extension = None;
+                Task::none()
+            } else if state.prepared.contains_key(&extension) {
+                state.expanded_extension = Some(extension);
+                state.pending_extension = None;
+                Task::none()
+            } else {
+                state.pending_extension = Some(extension.clone());
+                let files: Vec<AllocationFile> = state
+                    .allocation
+                    .files
+                    .iter()
+                    .filter(|file| file.extension == extension)
+                    .cloned()
+                    .collect();
+                prepare_breakdown_task(files, extension)
+            }
+        }
+        Message::BreakdownPrepared(breakdown) => {
+            // Apply only when the user still waits on this extension.
+            if state.pending_extension.as_deref() == Some(breakdown.extension.as_str()) {
+                let extension = breakdown.extension.clone();
+                state.prepared.insert(extension.clone(), breakdown);
+                state.expanded_extension = Some(extension);
+                state.pending_extension = None;
+                state.allocation_generation += 1;
+            }
+            Task::none()
+        }
+        Message::BreakdownScrolled {
+            offset,
+            viewport_height,
+        } => {
+            state.breakdown_scroll_offset = offset;
+            state.breakdown_viewport_height = viewport_height;
             Task::none()
         }
         Message::RefreshSiloSize => silo_size_task(),
@@ -204,9 +289,19 @@ fn view(state: &SiloApp) -> iced::Element<'_, Message> {
     ));
 
     // The SILO ANALYSIS panel fills the space below the action area.
+    let expanded = state
+        .expanded_extension
+        .as_ref()
+        .and_then(|extension| state.prepared.get(extension));
+
     stack = stack.push(silo_analysis_layout::view(
         &state.silo_size,
-        &state.allocation,
+        &state.allocation.stats,
+        expanded,
+        state.pending_extension.as_deref(),
+        state.allocation_generation,
+        state.breakdown_scroll_offset,
+        state.breakdown_viewport_height,
     ));
 
     if state.about_open {

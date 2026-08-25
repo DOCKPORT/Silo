@@ -119,19 +119,52 @@ pub fn analyze(path: &Path, excludes: &[String]) -> Result<AnalysisReport, Analy
     walk::analyze(path, excludes)
 }
 
-/// Merge the file-type allocation of several silo folders into one list.
+/// A single file behind the allocation chart, with the folder that holds it.
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
+pub struct AllocationFile {
+    /// The extension without the dot, or the reserved `no-extension` name.
+    pub extension: String,
+    /// The silo root folder that contains this file.
+    pub root: PathBuf,
+    /// The path relative to `root`.
+    pub relative_path: PathBuf,
+    /// The size of the file in bytes.
+    pub size_bytes: u64,
+}
+
+/// The file-type allocation of the silo: the per-extension summary plus the
+/// files behind it.
+#[derive(Debug, Clone, Default)]
+pub struct Allocation {
+    /// The per-extension summary, ordered by total bytes descending.
+    pub stats: Vec<FileTypeStat>,
+    /// Every non-excluded file with its extension, root, and relative path.
+    pub files: Vec<AllocationFile>,
+}
+
+/// Analyze every silo folder and build the full file-type allocation.
 ///
-/// Runs [`analyze`] on every path with the same exclude patterns and
-/// collects the file entries. A folder that cannot be analyzed is skipped, so
-/// one bad folder does not empty the whole chart. The merged result is
-/// ordered by total bytes descending, matching the per-folder allocation.
-pub fn merged_file_types(paths: &[PathBuf], excludes: &[String]) -> Vec<FileTypeStat> {
-    let mut files = Vec::new();
-    for path in paths {
-        if let Ok(report) = analyze(path, excludes) {
-            files.extend(report.files);
+/// Runs [`analyze`] on every path with the same exclude patterns. A folder
+/// that cannot be analyzed is skipped, so one bad folder does not empty the
+/// result. The stats are ordered by total bytes descending; `files` carries
+/// every file with its full location for the breakdown view.
+pub fn silo_allocation(paths: &[PathBuf], excludes: &[String]) -> Allocation {
+    let mut entries: Vec<FileEntry> = Vec::new();
+    let mut files: Vec<AllocationFile> = Vec::new();
+    for root in paths {
+        if let Ok(report) = analyze(root, excludes) {
+            for entry in report.files {
+                files.push(AllocationFile {
+                    extension: file_type_allocation::extension_of(&entry.relative_path),
+                    root: root.clone(),
+                    relative_path: entry.relative_path.clone(),
+                    size_bytes: entry.size_bytes,
+                });
+                entries.push(entry);
+            }
         }
     }
-    let total: u64 = files.iter().map(|file| file.size_bytes).sum();
-    file_type_allocation::compute_file_types(&files, total)
+    let total: u64 = entries.iter().map(|entry| entry.size_bytes).sum();
+    let stats = file_type_allocation::compute_file_types(&entries, total);
+    Allocation { stats, files }
 }
