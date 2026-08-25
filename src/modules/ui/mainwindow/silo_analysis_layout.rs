@@ -11,7 +11,7 @@
 use iced::widget::{Column, Row, container, text};
 use iced::{Border, Element, Length, Padding};
 
-use crate::modules::silo_analysis::FileTypeStat;
+use crate::modules::silo_analysis::{FileTypeStat, Stats};
 use crate::modules::ui::crosshatch;
 
 use super::silo_allocation_chart::PreparedBreakdown;
@@ -78,14 +78,15 @@ const BOTTOM_PAD: f32 = 30.0;
 /// width (minus the side padding) and height (minus the bottom padding), so it
 /// takes most of the space below the action area. `silo_size` is the live
 /// total size label; the empty-state group shows only while it reads `0 B`.
-/// `allocation` feeds the ALLOCATION box chart; `expanded` is the prepared
-/// breakdown to show, if any; `pending` is the extension being prepared;
-/// `generation` lets the chart cache its subtree across frames;
-/// `scroll_offset` and `viewport_height` select the visible window of the
-/// virtualized chart.
+/// `allocation` feeds the ALLOCATION box chart; `summary` feeds the STATS box
+/// table; `expanded` is the prepared breakdown to show, if any; `pending` is
+/// the extension being prepared; `generation` lets the chart cache its
+/// subtree across frames; `scroll_offset` and `viewport_height` select the
+/// visible window of the virtualized chart.
 pub fn view<'a>(
     silo_size: &'a str,
     allocation: &'a [FileTypeStat],
+    summary: &'a Stats,
     expanded: Option<&'a PreparedBreakdown>,
     pending: Option<&'a str>,
     generation: u64,
@@ -159,7 +160,7 @@ pub fn view<'a>(
                     viewport_height,
                 ),
             ))
-            .push(analysis_box("STATS", text("").into()));
+            .push(analysis_box("STATS", super::silo_stats_table::view(summary)));
         content = content.push(boxes_row);
     }
 

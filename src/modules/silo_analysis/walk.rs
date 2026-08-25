@@ -174,13 +174,17 @@ fn relative_path(path: &Path, root: &Path) -> PathBuf {
 fn compute_stats(files: &[FileEntry], total_dirs: u64) -> Stats {
     let total_files = files.len() as u64;
     let total_size_bytes: u64 = files.iter().map(|f| f.size_bytes).sum();
+    let zero_byte_files = files.iter().filter(|f| f.size_bytes == 0).count() as u64;
 
     let largest_file = files
         .iter()
         .max_by(|a, b| a.size_bytes.cmp(&b.size_bytes))
         .map(file_ref);
+    // Zero-byte files never win: the smallest file must hold at least one
+    // byte. Zero-byte files have their own stat.
     let smallest_file = files
         .iter()
+        .filter(|f| f.size_bytes >= 1)
         .min_by(|a, b| a.size_bytes.cmp(&b.size_bytes))
         .map(file_ref);
 
@@ -209,6 +213,7 @@ fn compute_stats(files: &[FileEntry], total_dirs: u64) -> Stats {
         total_files,
         total_dirs,
         total_size_bytes,
+        zero_byte_files,
         largest_file,
         smallest_file,
         average_file_size_bytes,

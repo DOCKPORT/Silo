@@ -25,7 +25,7 @@ const LOGO_BRIGHT_BYTES: &[u8] =
     include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/logo/silo_logo.svg"));
 
 /// The thickness of a rule, in reference-resolution pixels.
-const LINE_THICKNESS: f32 = 20.0;
+const LINE_THICKNESS: f32 = 18.0;
 
 /// The gap between the top of the window and the first rule, in reference px.
 const TOP_GAP: f32 = 30.0;

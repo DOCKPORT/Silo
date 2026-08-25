@@ -16,6 +16,7 @@ mod config_silo_dialog_exclude;
 mod config_silo_dialog_folders;
 mod silo_allocation_chart;
 mod silo_analysis_layout;
+mod silo_stats_table;
 mod status_format;
 mod sync_progress;
 mod sync_progress_bar;
@@ -297,6 +298,7 @@ fn view(state: &SiloApp) -> iced::Element<'_, Message> {
     stack = stack.push(silo_analysis_layout::view(
         &state.silo_size,
         &state.allocation.stats,
+        &state.allocation.summary,
         expanded,
         state.pending_extension.as_deref(),
         state.allocation_generation,

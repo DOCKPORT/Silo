@@ -66,7 +66,7 @@ pub struct FileRef {
 }
 
 /// Summary statistics for the analyzed silo.
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, Default, serde::Serialize)]
 pub struct Stats {
     /// Total number of files inside the silo.
     pub total_files: u64,
@@ -74,6 +74,8 @@ pub struct Stats {
     pub total_dirs: u64,
     /// Total size of all files in bytes.
     pub total_size_bytes: u64,
+    /// Number of files with a size of zero bytes.
+    pub zero_byte_files: u64,
     /// The largest file, or `None` if the silo has no files.
     pub largest_file: Option<FileRef>,
     /// The smallest file, or `None` if the silo has no files.
@@ -140,6 +142,8 @@ pub struct Allocation {
     pub stats: Vec<FileTypeStat>,
     /// Every non-excluded file with its extension, root, and relative path.
     pub files: Vec<AllocationFile>,
+    /// The merged silo-wide statistics, shown in the STATS table.
+    pub summary: Stats,
 }
 
 /// Analyze every silo folder and build the full file-type allocation.
@@ -151,6 +155,7 @@ pub struct Allocation {
 pub fn silo_allocation(paths: &[PathBuf], excludes: &[String]) -> Allocation {
     let mut entries: Vec<FileEntry> = Vec::new();
     let mut files: Vec<AllocationFile> = Vec::new();
+    let mut summaries: Vec<Stats> = Vec::new();
     for root in paths {
         if let Ok(report) = analyze(root, excludes) {
             for entry in report.files {
@@ -162,9 +167,63 @@ pub fn silo_allocation(paths: &[PathBuf], excludes: &[String]) -> Allocation {
                 });
                 entries.push(entry);
             }
+            summaries.push(report.stats);
         }
     }
     let total: u64 = entries.iter().map(|entry| entry.size_bytes).sum();
     let stats = file_type_allocation::compute_file_types(&entries, total);
-    Allocation { stats, files }
+
+    let mut summary = merge_stats(summaries);
+    summary.file_types = stats.clone();
+
+    Allocation { stats, files, summary }
+}
+
+/// Merges the per-folder statistics into one silo-wide summary.
+///
+/// Counts and sizes are summed; the largest, smallest, oldest, and newest
+/// files are the extremes across every folder. The average is recomputed from
+/// the merged totals.
+fn merge_stats(summaries: Vec<Stats>) -> Stats {
+    let total_files = summaries.iter().map(|s| s.total_files).sum();
+    let total_dirs = summaries.iter().map(|s| s.total_dirs).sum();
+    let total_size_bytes = summaries.iter().map(|s| s.total_size_bytes).sum();
+    let zero_byte_files = summaries.iter().map(|s| s.zero_byte_files).sum();
+
+    let largest_file = summaries
+        .iter()
+        .filter_map(|s| s.largest_file.clone())
+        .max_by(|a, b| a.size_bytes.cmp(&b.size_bytes));
+    let smallest_file = summaries
+        .iter()
+        .filter_map(|s| s.smallest_file.clone())
+        .min_by(|a, b| a.size_bytes.cmp(&b.size_bytes));
+    let oldest_file = summaries
+        .iter()
+        .filter_map(|s| s.oldest_file.clone())
+        .min_by(|a, b| a.modified.cmp(&b.modified));
+    let newest_file = summaries
+        .iter()
+        .filter_map(|s| s.newest_file.clone())
+        .max_by(|a, b| a.modified.cmp(&b.modified));
+
+    let average_file_size_bytes = if total_files == 0 {
+        None
+    } else {
+        Some(total_size_bytes / total_files)
+    };
+
+    Stats {
+        total_files,
+        total_dirs,
+        total_size_bytes,
+        zero_byte_files,
+        largest_file,
+        smallest_file,
+        average_file_size_bytes,
+        oldest_file,
+        newest_file,
+        // The merged file types are filled in by the caller.
+        file_types: Vec::new(),
+    }
 }
