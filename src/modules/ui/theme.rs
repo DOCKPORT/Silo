@@ -32,6 +32,9 @@ pub const DETAIL: Color = rgb8(0x3e, 0x76, 0x8b);
 /// GREY secondary text: #b8b8b8.
 pub const GREY: Color = rgb8(0xb8, 0xb8, 0xb8);
 
+/// ZEBRA stripe background for alternating list rows: #222222.
+pub const ZEBRA: Color = rgb8(0x22, 0x22, 0x22);
+
 /// The Silo color palette mapped onto the Iced [`Palette`] slots.
 pub fn silo_palette() -> Palette {
     Palette {

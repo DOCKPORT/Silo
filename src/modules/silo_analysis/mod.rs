@@ -110,10 +110,28 @@ pub struct AnalysisReport {
 /// Analyze a silo: walk every file and directory under `path` and compute
 /// statistics about it.
 ///
-/// The path must exist and be a directory. Returns [`AnalysisError`] for
-/// validation failures and root-level walk failures. Individual unreadable
-/// sub-entries are recorded in [`AnalysisReport::scan_errors`] and do not
-/// abort the scan.
-pub fn analyze(path: &Path) -> Result<AnalysisReport, AnalysisError> {
-    walk::analyze(path)
+/// The path must exist and be a directory. `excludes` holds the exclude
+/// patterns; excluded directories and files are skipped, matching the silo
+/// size computation. Returns [`AnalysisError`] for validation failures and
+/// root-level walk failures. Individual unreadable sub-entries are recorded
+/// in [`AnalysisReport::scan_errors`] and do not abort the scan.
+pub fn analyze(path: &Path, excludes: &[String]) -> Result<AnalysisReport, AnalysisError> {
+    walk::analyze(path, excludes)
+}
+
+/// Merge the file-type allocation of several silo folders into one list.
+///
+/// Runs [`analyze`] on every path with the same exclude patterns and
+/// collects the file entries. A folder that cannot be analyzed is skipped, so
+/// one bad folder does not empty the whole chart. The merged result is
+/// ordered by total bytes descending, matching the per-folder allocation.
+pub fn merged_file_types(paths: &[PathBuf], excludes: &[String]) -> Vec<FileTypeStat> {
+    let mut files = Vec::new();
+    for path in paths {
+        if let Ok(report) = analyze(path, excludes) {
+            files.extend(report.files);
+        }
+    }
+    let total: u64 = files.iter().map(|file| file.size_bytes).sum();
+    file_type_allocation::compute_file_types(&files, total)
 }

@@ -44,7 +44,12 @@ impl<Message> Program<Message> for Crosshatch {
         bounds: Rectangle,
         _cursor: mouse::Cursor,
     ) -> Vec<canvas::Geometry> {
-        let mut frame = canvas::Frame::with_bounds(renderer, bounds);
+        // A frame sized to the canvas, with its origin at the canvas top-left.
+        // The canvas widget positions the geometry at its layout location, so
+        // the pattern tiles from the box corner instead of the window corner.
+        // (Using the absolute bounds here would double-shift the clip for any
+        // canvas that does not sit at the window origin.)
+        let mut frame = canvas::Frame::new(renderer, bounds.size());
 
         let spacing = sp(HATCH_SPACING);
         let thickness = sp(HATCH_THICKNESS);

@@ -9,7 +9,7 @@ use std::path::{Path, PathBuf};
 use iced::window::Position;
 use iced::{Subscription, Task, application};
 
-use crate::modules::{config, silo_size};
+use crate::modules::{config, silo_analysis, silo_size};
 
 use super::app_icon;
 use super::{Message, SiloApp, update, view};
@@ -43,9 +43,10 @@ fn new() -> (SiloApp, Task<Message>) {
     };
     (
         app,
-        // Compute the total silo size in the background, so the SILO SIZE
-        // label is live from the first frame.
-        silo_size_task(),
+        // Compute the total silo size and the file-type allocation in the
+        // background, so the SILO SIZE label and the ALLOCATION chart are
+        // live from the first frame.
+        Task::batch([silo_size_task(), silo_allocation_task()]),
     )
 }
 
@@ -58,6 +59,25 @@ pub(super) fn silo_size_task() -> Task<Message> {
     Task::perform(
         async { silo_size::silo_size_label() },
         Message::SiloSizeComputed,
+    )
+}
+
+/// Spawns a background task that computes the file-type allocation.
+///
+/// The task reads the current settings from the database, so it reflects the
+/// latest folders. The result maps to `Message::AllocationComputed`;
+/// unreadable source folders are skipped by the analysis engine.
+pub(super) fn silo_allocation_task() -> Task<Message> {
+    Task::perform(
+        async {
+            match config::load() {
+                Ok(settings) => {
+                    silo_analysis::merged_file_types(&settings.silo_data_paths, &settings.excludes)
+                }
+                Err(_) => Vec::new(),
+            }
+        },
+        Message::AllocationComputed,
     )
 }
 

@@ -14,6 +14,8 @@ mod config_silo_dialog;
 mod config_silo_dialog_elements;
 mod config_silo_dialog_exclude;
 mod config_silo_dialog_folders;
+mod silo_allocation_chart;
+mod silo_analysis_layout;
 mod status_format;
 mod sync_progress;
 mod sync_progress_bar;
@@ -24,10 +26,12 @@ mod sync_silo_dialog_elements;
 use iced::widget::{Stack, container, text};
 use iced::{Length, Size, Task};
 
+use crate::modules::silo_analysis::FileTypeStat;
+
 use super::scaling::Scaling;
 use super::scanlines;
 
-use app::{set_hovered, silo_size_task};
+use app::{set_hovered, silo_allocation_task, silo_size_task};
 use config_silo_actions::{ConfigMsg, ConfigState};
 use sync_silo_actions::{SyncMsg, SyncState};
 
@@ -56,6 +60,10 @@ pub struct SiloApp {
     /// while the first computation runs, and "N/A" when a source folder
     /// cannot be read.
     silo_size: String,
+    /// The file-type allocation of the silo, ordered by total bytes
+    /// descending. Empty while the background computation runs or when the
+    /// silo is empty.
+    allocation: Vec<FileTypeStat>,
     /// The Config Silo dialog state: the folder and exclude rows plus their
     /// interaction flags.
     config: ConfigState,
@@ -94,6 +102,9 @@ enum Message {
     CloseSyncSiloDialog,
     /// A background total-size computation finished; carries the size label.
     SiloSizeComputed(String),
+    /// A background file-type allocation computation finished; carries the
+    /// per-extension statistics.
+    AllocationComputed(Vec<FileTypeStat>),
     /// The window regained focus; refresh the total silo size in the
     /// background so the label reflects files changed on disk.
     RefreshSiloSize,
@@ -140,8 +151,9 @@ fn update(state: &mut SiloApp, message: Message) -> Task<Message> {
             state.config_dialog_open = false;
             state.config.reset();
             // The folders or exclude patterns may have changed while the
-            // dialog was open, so recompute the total size in the background.
-            silo_size_task()
+            // dialog was open, so recompute the total size and the file-type
+            // allocation in the background.
+            Task::batch([silo_size_task(), silo_allocation_task()])
         }
         Message::OpenSyncSiloDialog => {
             state.sync_dialog_open = true;
@@ -154,6 +166,10 @@ fn update(state: &mut SiloApp, message: Message) -> Task<Message> {
         }
         Message::SiloSizeComputed(label) => {
             state.silo_size = label;
+            Task::none()
+        }
+        Message::AllocationComputed(file_types) => {
+            state.allocation = file_types;
             Task::none()
         }
         Message::RefreshSiloSize => silo_size_task(),
@@ -174,7 +190,8 @@ fn update(state: &mut SiloApp, message: Message) -> Task<Message> {
 ///
 /// The base is a full-window [`Container`] with no visible content. The theme's
 /// `background` palette color (`#161616`) paints the whole surface. The
-/// [`action_area`] overlay is stacked above it, and the [`scanlines`] overlay
+/// [`action_area`] overlay is stacked above it, the [`silo_analysis_layout`]
+/// panel fills the space below the action area, and the [`scanlines`] overlay
 /// sits on top of everything for the retro CRT screen look.
 fn view(state: &SiloApp) -> iced::Element<'_, Message> {
     let base = container(text("")).width(Length::Fill).height(Length::Fill);
@@ -184,6 +201,12 @@ fn view(state: &SiloApp) -> iced::Element<'_, Message> {
         state.config_hovered,
         state.sync_hovered,
         &state.silo_size,
+    ));
+
+    // The SILO ANALYSIS panel fills the space below the action area.
+    stack = stack.push(silo_analysis_layout::view(
+        &state.silo_size,
+        &state.allocation,
     ));
 
     if state.about_open {

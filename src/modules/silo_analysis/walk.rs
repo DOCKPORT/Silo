@@ -13,23 +13,34 @@ use std::io;
 use std::path::Path;
 use std::path::PathBuf;
 
+use crate::modules::silo_size::is_excluded;
+
 use super::error::AnalysisError;
 use super::file_type_allocation;
 use super::{AnalysisReport, DirEntry, FileEntry, FileRef, Stats};
 
-/// Analyze the silo rooted at `root`.
+/// Analyze the silo rooted at `root`, honoring the exclude patterns.
 ///
-/// Validates the root, then walks it and computes statistics. The list of
-/// per-entry errors is always present on the report, even when empty.
-pub(crate) fn analyze(root: &Path) -> Result<AnalysisReport, AnalysisError> {
+/// Validates the root, then walks it and computes statistics. Excluded
+/// directories are skipped entirely, so their subtree never counts; excluded
+/// files are skipped too. The list of per-entry errors is always present on
+/// the report, even when empty.
+pub(crate) fn analyze(root: &Path, excludes: &[String]) -> Result<AnalysisReport, AnalysisError> {
     validate_root(root)?;
 
     let mut files = Vec::new();
     let mut dirs = Vec::new();
     let mut scan_errors = Vec::new();
 
-    walk_dir(root, root, &mut files, &mut dirs, &mut scan_errors)
-        .map_err(AnalysisError::WalkRoot)?;
+    walk_dir(
+        root,
+        root,
+        excludes,
+        &mut files,
+        &mut dirs,
+        &mut scan_errors,
+    )
+    .map_err(AnalysisError::WalkRoot)?;
 
     let stats = compute_stats(&files, dirs.len() as u64);
 
@@ -55,12 +66,14 @@ fn validate_root(root: &Path) -> Result<(), AnalysisError> {
 
 /// Recursively walk `dir` and collect every file and directory under it.
 ///
-/// A failed sub-entry is recorded as a string in `scan_errors`; the walk
-/// continues with the next entry. Only a read failure on `dir` itself is
-/// propagated to the caller.
+/// Excluded directories are skipped entirely, so their subtree never counts;
+/// excluded files are skipped too. A failed sub-entry is recorded as a string
+/// in `scan_errors`; the walk continues with the next entry. Only a read
+/// failure on `dir` itself is propagated to the caller.
 fn walk_dir(
     dir: &Path,
     root: &Path,
+    excludes: &[String],
     files: &mut Vec<FileEntry>,
     dirs: &mut Vec<DirEntry>,
     scan_errors: &mut Vec<String>,
@@ -92,13 +105,18 @@ fn walk_dir(
             }
         };
 
-        if file_type.is_dir() {
+        let is_dir = file_type.is_dir();
+        if is_excluded(&name, is_dir, excludes) {
+            continue;
+        }
+
+        if is_dir {
             let rel = relative_path(&path, root);
             dirs.push(DirEntry {
                 name,
                 relative_path: rel,
             });
-            walk_dir(&path, root, files, dirs, scan_errors)?;
+            walk_dir(&path, root, excludes, files, dirs, scan_errors)?;
             continue;
         }
 

@@ -78,6 +78,14 @@ fn band_center() -> f32 {
     TOP_GAP + (LINE_THICKNESS + LINE_SPACING) / 2.0
 }
 
+/// The bottom edge of the second orange rule, in reference pixels.
+///
+/// The content below the action area (the SILO ANALYSIS panel) starts below
+/// this line.
+pub(super) fn content_bottom() -> f32 {
+    TOP_GAP + LINE_SPACING + LINE_THICKNESS
+}
+
 /// Builds a single orange rule, the single source of truth for the line look.
 ///
 /// Returns a full-width, orange bar. Its thickness is scaled through [`sp`]

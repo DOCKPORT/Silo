@@ -294,7 +294,7 @@ fn mtime_secs(metadata: &fs::Metadata) -> u64 {
 /// case. A leading `*` on an extension keyword is sugar, so `*.mov` works
 /// like `.mov`. Extension keywords never match folders, and empty patterns
 /// never exclude.
-fn is_excluded(name: &str, is_dir: bool, excludes: &[String]) -> bool {
+pub(crate) fn is_excluded(name: &str, is_dir: bool, excludes: &[String]) -> bool {
     excludes.iter().any(|pattern| {
         let pattern = pattern.trim();
         if pattern.is_empty() {
