@@ -75,7 +75,7 @@ pub(crate) fn sync_streaming(
     // Now the warnings that were buffered from stderr.
     let _ = stderr_thread.join();
     let mut clean_stderr = String::new();
-    let stderr_lines = stderr_lines.lock().unwrap().clone();
+    let stderr_lines = std::mem::take(&mut *stderr_lines.lock().unwrap());
     for line in stderr_lines {
         on_line(&line);
         if !is_progress_line(&line) {

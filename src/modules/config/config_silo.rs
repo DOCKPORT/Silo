@@ -11,6 +11,9 @@
 //! - `exclude`: one row per exclude pattern
 //! - `rsync_dest_path`: a single row holding the rsync destination path
 //!
+//! The database runs in WAL mode, so background readers never block the UI
+//! thread's writes. The setting is persistent inside the database file.
+//!
 //! Call [`init`] once at startup. It creates the directory, the database file,
 //! the three tables, and the singleton row. It is idempotent, so calling it on
 //! every launch creates the store when it is missing and never deletes existing
@@ -20,6 +23,7 @@ use std::fmt;
 use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
+use std::time::Duration;
 
 use rusqlite::{Connection, OptionalExtension};
 
@@ -104,6 +108,17 @@ fn default_db_path() -> Result<PathBuf, ConfigError> {
     Ok(default_db_dir()?.join(DB_FILE_NAME))
 }
 
+/// Open the settings database with a busy timeout.
+///
+/// The UI thread writes settings while background tasks can read them from
+/// their own connection. The timeout makes a locked database wait instead of
+/// failing with a "database is locked" error.
+fn open(db: &Path) -> Result<Connection, ConfigError> {
+    let conn = Connection::open(db)?;
+    conn.busy_timeout(Duration::from_secs(3))?;
+    Ok(conn)
+}
+
 /// Ensure that the settings directory, database file, tables, and singleton
 /// rows exist.
 ///
@@ -121,7 +136,10 @@ pub fn init() -> Result<(), ConfigError> {
 fn init_at(dir: &Path) -> Result<PathBuf, ConfigError> {
     fs::create_dir_all(dir).map_err(ConfigError::CreateDir)?;
     let db_path = dir.join(DB_FILE_NAME);
-    let conn = Connection::open(&db_path)?;
+    let conn = open(&db_path)?;
+    // WAL mode is persistent, so it applies to every later connection. Setting
+    // it here also converts a database created before WAL existed.
+    conn.pragma_update(None, "journal_mode", "WAL")?;
     create_schema(&conn)?;
     Ok(db_path)
 }
@@ -163,7 +181,7 @@ pub fn load() -> Result<SiloSettings, ConfigError> {
 
 /// The same as [`load`], but reads from `db`.
 fn load_from(db: &Path) -> Result<SiloSettings, ConfigError> {
-    let conn = Connection::open(db)?;
+    let conn = open(db)?;
 
     let silo_data_paths = load_text_column(&conn, "silo_data_paths", "path")?
         .into_iter()
@@ -221,7 +239,7 @@ pub fn add_data_path(path: &Path) -> Result<(), ConfigError> {
 
 /// The same as [`add_data_path`], but writes to `db`.
 fn add_data_path_to(db: &Path, path: &Path) -> Result<(), ConfigError> {
-    let conn = Connection::open(db)?;
+    let conn = open(db)?;
     conn.execute(
         "INSERT INTO silo_data_paths (path) VALUES (?1)
          ON CONFLICT (path) DO NOTHING",
@@ -242,7 +260,7 @@ pub fn remove_data_path(path: &Path) -> Result<(), ConfigError> {
 
 /// The same as [`remove_data_path`], but writes to `db`.
 fn remove_data_path_from(db: &Path, path: &Path) -> Result<(), ConfigError> {
-    let conn = Connection::open(db)?;
+    let conn = open(db)?;
     conn.execute(
         "DELETE FROM silo_data_paths WHERE path = ?1",
         [path.to_string_lossy().into_owned()],
@@ -262,7 +280,7 @@ pub fn replace_excludes(excludes: &[String]) -> Result<(), ConfigError> {
 
 /// The same as [`replace_excludes`], but writes to `db`.
 fn replace_excludes_from(db: &Path, excludes: &[String]) -> Result<(), ConfigError> {
-    let mut conn = Connection::open(db)?;
+    let mut conn = open(db)?;
     let tx = conn.transaction()?;
 
     tx.execute("DELETE FROM exclude", [])?;
@@ -274,6 +292,29 @@ fn replace_excludes_from(db: &Path, excludes: &[String]) -> Result<(), ConfigErr
     }
 
     tx.commit()?;
+    Ok(())
+}
+
+/// Update one exclude pattern in the settings database.
+///
+/// Updates the pattern at `index` (0-based, in row order) in `exclude`,
+/// without touching the other rows. `index` matches the order returned by
+/// [`load`], which reads `ORDER BY rowid`. Structural changes (adding or
+/// removing rows) still go through [`replace_excludes`], which renumbers the
+/// rows from 1, so the index-to-rowid mapping stays valid.
+///
+/// The store must be initialized with [`init`] first.
+pub fn update_exclude(index: usize, pattern: &str) -> Result<(), ConfigError> {
+    update_exclude_from(&default_db_path()?, index, pattern)
+}
+
+/// The same as [`update_exclude`], but writes to `db`.
+fn update_exclude_from(db: &Path, index: usize, pattern: &str) -> Result<(), ConfigError> {
+    let conn = open(db)?;
+    conn.execute(
+        "UPDATE exclude SET pattern = ?1 WHERE rowid = ?2",
+        (pattern, (index as i64) + 1),
+    )?;
     Ok(())
 }
 
@@ -289,7 +330,7 @@ pub fn set_rsync_dest_path(path: Option<&Path>) -> Result<(), ConfigError> {
 
 /// The same as [`set_rsync_dest_path`], but writes to `db`.
 fn set_rsync_dest_path_to(db: &Path, path: Option<&Path>) -> Result<(), ConfigError> {
-    let mut conn = Connection::open(db)?;
+    let mut conn = open(db)?;
     let tx = conn.transaction()?;
 
     tx.execute("DELETE FROM rsync_dest_path", [])?;

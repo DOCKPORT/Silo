@@ -92,7 +92,7 @@ pub fn view(close_hovered: bool) -> Element<'static, Message> {
                 .width(Length::Fixed(sp(BANNER_WIDTH))),
         )
         .push(
-            text(format!("VERSION {}", env!("CARGO_PKG_VERSION")))
+            text(concat!("VERSION ", env!("CARGO_PKG_VERSION")))
                 .size(sp(VERSION_SIZE))
                 .color(TEAL),
         )

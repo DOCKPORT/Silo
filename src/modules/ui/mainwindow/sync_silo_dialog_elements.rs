@@ -21,6 +21,7 @@ use crate::modules::ui::scrollbar;
 use crate::modules::ui::theme::{DETAIL, GREY, ORANGE, TEAL};
 
 use super::Message;
+use super::action_area::{FOLDER_ICON_BYTES, HEADER_HEIGHT, divider, plus_button};
 use super::status_format::{StatusKind, StatusLine};
 use super::sync_progress::SyncProgress;
 use super::sync_silo_actions::SyncMsg;
@@ -36,14 +37,6 @@ const BOX_PAD: f32 = 10.0;
 
 /// The gap between the box title and its divider line, in ref px.
 const TITLE_SPACING: f32 = 8.0;
-
-/// The height of the box header band, in reference pixels. Matches the line
-/// height of the 15 px titles so the divider lines stay aligned.
-const HEADER_HEIGHT: f32 = 18.0;
-
-/// The font size of the + button text, in reference pixels. The + is larger
-/// than the titles but does not change the header band height.
-const PLUS_TEXT_SIZE: f32 = 22.0;
 
 /// The width of the destination chip border, in reference pixels.
 const CHIP_BORDER_WIDTH: f32 = 3.0;
@@ -77,12 +70,6 @@ const STATUS_TEXT_SIZE: f32 = 14.0;
 
 /// The vertical gap between two STATUS box lines, in reference pixels.
 const STATUS_LINE_SPACING: f32 = 6.0;
-
-/// The embedded folder icon, compiled into the binary at build time.
-const FOLDER_ICON_BYTES: &[u8] = include_bytes!(concat!(
-    env!("CARGO_MANIFEST_DIR"),
-    "/logo/folder_icon/folder-192.svg"
-));
 
 /// Builds the sync settings panel area.
 ///
@@ -294,43 +281,6 @@ fn remove_menu<'a>(path: &Path, hovered: bool) -> Element<'a, Message> {
         .on_enter(Message::Sync(SyncMsg::DestMenuHovered(true)))
         .on_exit(Message::Sync(SyncMsg::DestMenuHovered(false)))
         .on_press(Message::Sync(SyncMsg::RemoveDestPath))
-        .interaction(mouse::Interaction::Pointer)
-        .into()
-}
-
-/// Builds the horizontal divider line under a box title, matching the box
-/// border style.
-fn divider() -> Element<'static, Message> {
-    container(text(""))
-        .width(Length::Fill)
-        .height(sp(BOX_BORDER_WIDTH))
-        .style(|_| container::Style {
-            background: Some(GREY.into()),
-            ..container::Style::default()
-        })
-        .into()
-}
-
-/// Builds a + button: a plain + text, larger than the title but keeping the
-/// header band height unchanged. The fixed height with vertical centering
-/// keeps the + centered in the band. The + turns white when hovered. The
-/// enter, exit, and press messages are supplied by the caller.
-fn plus_button(
-    hovered: bool,
-    on_enter: Message,
-    on_exit: Message,
-    on_press: Message,
-) -> Element<'static, Message> {
-    let plus = text("+")
-        .size(sp(PLUS_TEXT_SIZE))
-        .height(Length::Fixed(sp(HEADER_HEIGHT)))
-        .align_y(iced::alignment::Vertical::Center)
-        .color(if hovered { Color::WHITE } else { GREY });
-
-    MouseArea::new(plus)
-        .on_enter(on_enter)
-        .on_exit(on_exit)
-        .on_press(on_press)
         .interaction(mouse::Interaction::Pointer)
         .into()
 }

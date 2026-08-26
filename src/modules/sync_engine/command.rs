@@ -12,6 +12,8 @@
 //! All arguments are passed without a shell (`Command::arg`), so paths with
 //! spaces or special characters are handled safely.
 
+use std::ffi::OsString;
+use std::os::unix::ffi::{OsStrExt, OsStringExt};
 use std::path::Path;
 use std::process::Command;
 
@@ -78,20 +80,26 @@ pub(crate) fn build_dry_run(plan: &SyncPlan) -> Command {
 /// Remove a trailing slash from a path.
 ///
 /// This makes the source an exact folder reference so rsync copies the folder
-/// itself (with its name) into the destination.
-fn strip_trailing_slash(path: &Path) -> String {
-    let s = path.to_string_lossy();
-    s.strip_suffix('/').unwrap_or(&s).to_string()
+/// itself (with its name) into the destination. The path is handled as raw
+/// bytes, so a non-UTF-8 name survives intact.
+fn strip_trailing_slash(path: &Path) -> OsString {
+    let bytes = path.as_os_str().as_bytes();
+    let trimmed = bytes.strip_suffix(b"/").unwrap_or(bytes);
+    OsString::from_vec(trimmed.to_vec())
 }
 
 /// Append a trailing slash to a path if it does not already have one.
 ///
-/// This marks the destination as the mirror root that holds each source folder.
-fn with_trailing_slash(path: &Path) -> String {
-    let s = path.to_string_lossy();
-    if s.ends_with('/') {
-        s.into_owned()
+/// This marks the destination as the mirror root that holds each source
+/// folder. The path is handled as raw bytes, so a non-UTF-8 name survives
+/// intact.
+fn with_trailing_slash(path: &Path) -> OsString {
+    let bytes = path.as_os_str().as_bytes();
+    if bytes.ends_with(b"/") {
+        path.as_os_str().to_os_string()
     } else {
-        format!("{s}/")
+        let mut s = path.as_os_str().to_os_string();
+        s.push("/");
+        s
     }
 }

@@ -145,8 +145,9 @@ fn reformat_stats_line(line: &str) -> String {
 /// Parses a byte count that may include thousands separators.
 ///
 /// rsync prints numbers such as `7,423,077,535` by default; the separators
-/// are removed so the value parses as a plain integer.
-fn parse_bytes(raw: &str) -> Option<u64> {
+/// are removed so the value parses as a plain integer. Shared with
+/// [`super::sync_progress`], which parses rsync progress lines.
+pub(super) fn parse_bytes(raw: &str) -> Option<u64> {
     raw.replace(',', "").parse().ok()
 }
 

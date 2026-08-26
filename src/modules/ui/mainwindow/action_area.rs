@@ -349,3 +349,61 @@ pub fn view(
         .push(action_buttons(config_hovered, sync_hovered))
         .into()
 }
+
+// ---- Shared dialog helpers -------------------------------------------------
+
+/// The height of a dialog panel box header band, in reference pixels. Matches
+/// the line height of the 15 px titles so the divider lines stay aligned.
+pub(super) const HEADER_HEIGHT: f32 = 18.0;
+
+/// The font size of the + button text in dialog panel boxes, in reference
+/// pixels. Larger than the titles but does not change the header band height.
+pub(super) const PLUS_TEXT_SIZE: f32 = 22.0;
+
+/// The embedded folder icon used by the dialog folder chips, compiled into
+/// the binary at build time.
+pub(super) const FOLDER_ICON_BYTES: &[u8] = include_bytes!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/logo/folder_icon/folder-192.svg"
+));
+
+/// The thickness of a divider line under a box title, in reference pixels.
+/// Matches the 1 px dialog box borders.
+const DIVIDER_THICKNESS: f32 = 1.0;
+
+/// Builds the horizontal divider line under a box title, matching the box
+/// border style.
+pub(super) fn divider() -> Element<'static, Message> {
+    container(text(""))
+        .width(Length::Fill)
+        .height(sp(DIVIDER_THICKNESS))
+        .style(|_| container::Style {
+            background: Some(GREY.into()),
+            ..container::Style::default()
+        })
+        .into()
+}
+
+/// Builds a + button: a plain + text, larger than the title but keeping the
+/// header band height unchanged. The fixed height with vertical centering
+/// keeps the + centered in the band. The + turns white when hovered. The
+/// enter, exit, and press messages are supplied by the caller.
+pub(super) fn plus_button(
+    hovered: bool,
+    on_enter: Message,
+    on_exit: Message,
+    on_press: Message,
+) -> Element<'static, Message> {
+    let plus = text("+")
+        .size(sp(PLUS_TEXT_SIZE))
+        .height(Length::Fixed(sp(HEADER_HEIGHT)))
+        .align_y(iced::alignment::Vertical::Center)
+        .color(if hovered { Color::WHITE } else { GREY });
+
+    MouseArea::new(plus)
+        .on_enter(on_enter)
+        .on_exit(on_exit)
+        .on_press(on_press)
+        .interaction(mouse::Interaction::Pointer)
+        .into()
+}

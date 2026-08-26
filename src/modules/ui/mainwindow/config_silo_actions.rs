@@ -238,7 +238,13 @@ pub(super) fn update(state: &mut SiloApp, message: ConfigMsg) -> Task<Message> {
             if let Some(slot) = state.config.exclude_patterns.get_mut(index) {
                 *slot = value;
             }
-            save_excludes(state);
+            // Only one row changed, so update that row instead of rewriting
+            // the whole table on every keystroke.
+            if let Some(pattern) = state.config.exclude_patterns.get(index) {
+                if let Err(err) = config::update_exclude(index, pattern) {
+                    eprintln!("silo: could not save the exclude pattern: {err}");
+                }
+            }
             Task::none()
         }
         ConfigMsg::ExcludeMenuRequested(index) => {

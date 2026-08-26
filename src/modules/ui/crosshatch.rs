@@ -76,7 +76,7 @@ impl<Message> Program<Message> for Crosshatch {
         let mut c = 0.0_f32;
         while c <= reach {
             let path = Path::line(Point::new(c - reach, reach), Point::new(c + reach, -reach));
-            frame.stroke(&path, stroke.clone());
+            frame.stroke(&path, stroke);
             c += step;
         }
 

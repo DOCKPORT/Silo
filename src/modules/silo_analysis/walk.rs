@@ -16,7 +16,6 @@ use std::path::PathBuf;
 use crate::modules::silo_size::is_excluded;
 
 use super::error::AnalysisError;
-use super::file_type_allocation;
 use super::{AnalysisReport, DirEntry, FileEntry, FileRef, Stats};
 
 /// Analyze the silo rooted at `root`, honoring the exclude patterns.
@@ -238,8 +237,6 @@ fn compute_stats(
         .max_by(|a, b| a.modified.cmp(&b.modified))
         .map(|f| file_ref(root, f));
 
-    let file_types = file_type_allocation::compute_file_types(files, total_size_bytes);
-
     Stats {
         total_files,
         total_dirs,
@@ -251,7 +248,9 @@ fn compute_stats(
         average_file_size_bytes,
         oldest_file,
         newest_file,
-        file_types,
+        // The per-folder file-type breakdown is never consumed: the caller
+        // recomputes one global breakdown over every folder, so it stays empty.
+        file_types: Vec::new(),
     }
 }
 

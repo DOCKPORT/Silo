@@ -77,7 +77,7 @@ pub(super) fn parse_line(
 ) -> Option<SyncProgress> {
     let mut tokens = line.split_whitespace();
 
-    let transferred = parse_bytes(tokens.next()?)?;
+    let transferred = super::status_format::parse_bytes(tokens.next()?)?;
     let pct = tokens.next()?.strip_suffix('%')?.parse::<f64>().ok()?;
     let rate = parse_rate(tokens.next()?);
 
@@ -129,11 +129,6 @@ fn parse_rate(raw: &str) -> u64 {
     };
 
     (value * multiplier) as u64
-}
-
-/// Parses a byte count that may include thousands separators.
-fn parse_bytes(raw: &str) -> Option<u64> {
-    raw.replace(',', "").parse().ok()
 }
 
 /// Formats seconds as `HH:MM:SS`, for example `00:12:05`.

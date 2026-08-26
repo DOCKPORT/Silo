@@ -20,11 +20,13 @@ use iced::mouse;
 use iced::widget::{Column, MouseArea, Row, Space, container, svg, text};
 use iced::{Border, Element, Length, Padding, Task};
 
+use crate::modules::silo_size;
 use crate::modules::ui::scaling::sp;
 use crate::modules::ui::scrollbar;
 use crate::modules::ui::theme::{DETAIL, GREY, ORANGE, TEAL};
 
 use super::Message;
+use super::action_area::FOLDER_ICON_BYTES;
 use super::config_silo_actions::ConfigMsg;
 
 /// The width of the folder chip borders, in reference pixels.
@@ -53,12 +55,6 @@ const MENU_TEXT_SIZE: f32 = 16.0;
 
 /// The vertical padding of the remove menu row, in reference pixels.
 const MENU_PAD: f32 = 10.0;
-
-/// The embedded folder icon, compiled into the binary at build time.
-const FOLDER_ICON_BYTES: &[u8] = include_bytes!(concat!(
-    env!("CARGO_MANIFEST_DIR"),
-    "/logo/folder_icon/folder-192.svg"
-));
 
 /// The total size of the folder in bytes, including all nested files.
 ///
@@ -166,33 +162,13 @@ fn record(first_error: &Mutex<Option<io::Error>>, err: io::Error) {
     }
 }
 
-/// Format a byte count as a human-readable size string.
-///
-/// Uses binary units: 1 KiB = 1024 bytes. A zero count renders as `0 B`;
-/// everything else prints with one decimal place and a space.
-fn human_size(bytes: u64) -> String {
-    const UNITS: [&str; 6] = ["B", "KiB", "MiB", "GiB", "TiB", "PiB"];
-
-    if bytes == 0 {
-        return "0 B".to_string();
-    }
-
-    let mut value = bytes as f64;
-    let mut unit = 0;
-    while value >= 1024.0 && unit < UNITS.len() - 1 {
-        value /= 1024.0;
-        unit += 1;
-    }
-
-    format!("{value:.1} {}", UNITS[unit])
-}
-
 /// The folder's total data size as a human-readable string.
 ///
-/// Returns the size formatted by [`human_size`], or the first [`io::Error`]
-/// when the folder cannot be read. Used by the folder chip size label.
+/// Returns the size formatted by [`silo_size::human_size`], or the first
+/// [`io::Error`] when the folder cannot be read. Used by the folder chip size
+/// label.
 fn folder_size(path: &Path) -> Result<String, io::Error> {
-    Ok(human_size(folder_size_bytes(path)?))
+    Ok(silo_size::human_size(folder_size_bytes(path)?))
 }
 
 /// Builds one async task per folder to compute its size label.

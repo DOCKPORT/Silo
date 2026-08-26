@@ -7,5 +7,6 @@
 pub mod config_silo;
 
 pub use config_silo::{
-    ConfigError, add_data_path, init, load, remove_data_path, replace_excludes, set_rsync_dest_path,
+    ConfigError, add_data_path, init, load, remove_data_path, replace_excludes,
+    set_rsync_dest_path, update_exclude,
 };

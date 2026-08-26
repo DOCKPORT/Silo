@@ -108,8 +108,8 @@ pub fn view<'a>(
         .push(text("SILO ANALYSIS").size(sp(TITLE_SIZE)).color(GREY))
         .into();
 
-    // The placeholder label sits at the top of the box, until the analysis
-    // content is added.
+    // The empty-state label: the "not populated" message with the crosshatch
+    // pattern below it shows only while the total silo size reads "0 B".
     let label: Element<'static, Message> = container(
         text("SILO IS NOT POPULATED, PLEASE ENTER YOUR CONFIGURATIONS IN CONFIG. SILO")
             .size(sp(BODY_TEXT_SIZE))
@@ -167,7 +167,7 @@ pub fn view<'a>(
             ))
             .push(analysis_box(
                 "STATS",
-                super::silo_stats_table::view(summary, stats_row),
+                super::silo_stats_table::view(summary, stats_row, generation),
             ));
         content = content.push(boxes_row);
     }

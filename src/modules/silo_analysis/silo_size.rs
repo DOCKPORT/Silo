@@ -246,11 +246,8 @@ fn walk_delta(dir: &Path, dest_dir: &Path, excludes: &[String], total: &mut u64)
             if is_excluded(&name_str, false, excludes) {
                 continue;
             }
-            if needs_transfer(&path, &dest_path) {
-                match fs::metadata(&path) {
-                    Ok(metadata) => *total += metadata.len(),
-                    Err(_) => continue,
-                }
+            if let Some(len) = transfer_len(&path, &dest_path) {
+                *total += len;
             }
         }
     }
@@ -258,22 +255,28 @@ fn walk_delta(dir: &Path, dest_dir: &Path, excludes: &[String], total: &mut u64)
     Ok(())
 }
 
-/// True when rsync would transfer the file: the destination copy is missing,
-/// or its size or modification time differs.
-fn needs_transfer(source: &Path, dest: &Path) -> bool {
-    let Ok(dest_meta) = fs::metadata(dest) else {
-        return true;
+/// The length of the source file when rsync would transfer it: the
+/// destination copy is missing, or its size or modification time differs.
+///
+/// Returns `None` when the source file cannot be read, so the caller skips it.
+/// The source is stat'd once here and its length is returned, so the caller
+/// does not need a second stat.
+fn transfer_len(source: &Path, dest: &Path) -> Option<u64> {
+    let source_meta = fs::metadata(source).ok()?;
+    let dest_meta = match fs::metadata(dest) {
+        Ok(meta) => meta,
+        Err(_) => return Some(source_meta.len()),
     };
     if !dest_meta.is_file() {
-        return true;
+        return Some(source_meta.len());
     }
-    let Ok(source_meta) = fs::metadata(source) else {
-        return true;
-    };
     if source_meta.len() != dest_meta.len() {
-        return true;
+        return Some(source_meta.len());
     }
-    mtime_secs(&source_meta) != mtime_secs(&dest_meta)
+    if mtime_secs(&source_meta) != mtime_secs(&dest_meta) {
+        return Some(source_meta.len());
+    }
+    None
 }
 
 /// The modification time in whole seconds, matching rsync's quick check.

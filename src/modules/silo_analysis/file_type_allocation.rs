@@ -6,12 +6,10 @@
 //! byte size, and what percentage of the total silo size that group holds.
 //! Groups are ordered by total bytes descending.
 
-use std::collections::BTreeMap;
+use std::collections::HashMap;
 use std::path::Path;
 
 use serde::Serialize;
-
-use super::FileEntry;
 
 /// The reserved extension name for files that have no extension.
 const NO_EXTENSION: &str = "no-extension";
@@ -43,17 +41,19 @@ pub struct FileTypeStat {
 
 /// Group files by extension and compute each group's share of the silo size.
 ///
-/// Groups are ordered by total bytes descending. Ties keep alphabetical
-/// extension order, which `BTreeMap` iteration already provides.
-pub(crate) fn compute_file_types(files: &[FileEntry], total_size_bytes: u64) -> Vec<FileTypeStat> {
-    let mut groups: BTreeMap<String, (u64, u64)> = BTreeMap::new();
+/// Takes one `(extension, size_bytes)` pair per file, so callers that already
+/// know the extension do not compute it twice. Groups are ordered by total
+/// bytes descending. Ties keep alphabetical extension order.
+pub(crate) fn compute_file_types(
+    files: impl IntoIterator<Item = (String, u64)>,
+    total_size_bytes: u64,
+) -> Vec<FileTypeStat> {
+    let mut groups: HashMap<String, (u64, u64)> = HashMap::new();
 
-    for file in files {
-        let extension = extension_of(&file.relative_path);
-
+    for (extension, size_bytes) in files {
         let entry = groups.entry(extension).or_insert((0, 0));
         entry.0 += 1;
-        entry.1 += file.size_bytes;
+        entry.1 += size_bytes;
     }
 
     let mut stats: Vec<FileTypeStat> = groups
@@ -67,8 +67,12 @@ pub(crate) fn compute_file_types(files: &[FileEntry], total_size_bytes: u64) -> 
         .collect();
 
     // Order: highest total bytes first. Ties fall back to extension name
-    // order, which BTreeMap already provides.
-    stats.sort_by(|a, b| b.total_bytes.cmp(&a.total_bytes));
+    // order, alphabetically.
+    stats.sort_by(|a, b| {
+        b.total_bytes
+            .cmp(&a.total_bytes)
+            .then_with(|| a.extension.cmp(&b.extension))
+    });
 
     stats
 }

@@ -1,9 +1,10 @@
 //! MainWindow: the Iced main window for Silo.
 //!
-//! A blank window whose whole surface is painted with the Silo theme
-//! background `#161616`. The window shows no content yet; the view
-//! returns a full-window [`Container`] that is ready to receive children
-//! as the UI grows.
+//! This module is the window coordinator. It owns the application state
+//! ([`SiloApp`]), defines the application-level [`Message`] enum, dispatches
+//! messages in [`update`], and builds the layered view in [`view`]: the base
+//! background, the [`action_area`] overlay, the [`silo_analysis_layout`]
+//! panel, the open dialogs, and the [`scanlines`] overlay on top.
 
 mod about_dialog;
 mod action_area;

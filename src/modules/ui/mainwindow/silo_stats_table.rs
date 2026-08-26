@@ -13,7 +13,7 @@
 use std::path::PathBuf;
 
 use iced::mouse;
-use iced::widget::{Column, MouseArea, Row, Space, Stack, container, text};
+use iced::widget::{Column, MouseArea, Row, Space, Stack, container, lazy, text};
 use iced::{Color, Element, Length, Padding};
 
 use crate::modules::silo_analysis::{FileRef, Stats};
@@ -66,7 +66,7 @@ const CROSSHATCH_BOTTOM_PAD: f32 = 20.0;
 const MISSING: &str = "—";
 
 /// The expandable rows of the STATS table.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub(super) enum StatsRow {
     /// The EMPTY FOLDERS row.
     EmptyFolders,
@@ -87,7 +87,22 @@ pub(super) enum StatsRow {
 /// Renders one row per summary statistic. `summary` is the merged silo-wide
 /// statistics; an empty silo shows the counts and em dashes for the rest.
 /// The row for `selected` is expanded into its breakdown.
-pub fn view(summary: &Stats, selected: Option<StatsRow>) -> Element<'static, Message> {
+pub fn view<'a>(
+    summary: &'a Stats,
+    selected: Option<StatsRow>,
+    generation: u64,
+) -> Element<'a, Message> {
+    // Rebuild only when the summary data or the expanded row changes,
+    // matching the ALLOCATION chart's lazy caching. The summary changes only
+    // through `Message::AllocationComputed`, which bumps the generation.
+    lazy((generation, selected), move |_| {
+        build_table(summary, selected)
+    })
+    .into()
+}
+
+/// Builds the full table for the current summary.
+fn build_table(summary: &Stats, selected: Option<StatsRow>) -> Element<'static, Message> {
     let mut rows = Column::new().spacing(sp(ROW_SPACING));
 
     rows = rows.push(label_value(

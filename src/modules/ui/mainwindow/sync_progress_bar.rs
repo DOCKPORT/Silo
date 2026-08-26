@@ -15,10 +15,10 @@ use super::Message;
 use super::sync_progress::SyncProgress;
 
 /// The height of the progress bar track, in reference pixels.
-pub const BAR_HEIGHT: f32 = 13.0;
+const BAR_HEIGHT: f32 = 13.0;
 
 /// The width of the progress bar track, in reference pixels.
-pub const BAR_WIDTH: f32 = 175.0;
+const BAR_WIDTH: f32 = 175.0;
 
 /// The font size of the labels next to the bar, in reference pixels.
 /// Matches the STATUS box line text size.

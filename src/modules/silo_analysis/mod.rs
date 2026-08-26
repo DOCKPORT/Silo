@@ -12,6 +12,7 @@
 //! Design: the module is split into internal pieces:
 //! - [`walk`]: recursive filesystem scan + stats computation
 //! - [`file_type_allocation`]: per-extension size breakdown of the silo
+//! - [`silo_size`]: total size and sync delta computation
 //! - [`error`]: typed errors
 //!
 //! The path to analyze will later come from `silo_path_data` in the Silo
@@ -19,6 +20,7 @@
 //! this foundation takes the silo path directly as an argument.
 
 pub mod file_type_allocation;
+pub mod silo_size;
 
 mod error;
 mod walk;
@@ -158,25 +160,31 @@ pub struct Allocation {
 /// result. The stats are ordered by total bytes descending; `files` carries
 /// every file with its full location for the breakdown view.
 pub fn silo_allocation(paths: &[PathBuf], excludes: &[String]) -> Allocation {
-    let mut entries: Vec<FileEntry> = Vec::new();
     let mut files: Vec<AllocationFile> = Vec::new();
     let mut summaries: Vec<Stats> = Vec::new();
+    let mut total: u64 = 0;
     for root in paths {
         if let Ok(report) = analyze(root, excludes) {
             for entry in report.files {
+                total += entry.size_bytes;
                 files.push(AllocationFile {
                     extension: file_type_allocation::extension_of(&entry.relative_path),
                     root: root.clone(),
                     relative_path: entry.relative_path.clone(),
                     size_bytes: entry.size_bytes,
                 });
-                entries.push(entry);
             }
             summaries.push(report.stats);
         }
     }
-    let total: u64 = entries.iter().map(|entry| entry.size_bytes).sum();
-    let stats = file_type_allocation::compute_file_types(&entries, total);
+    // The files already carry their extension, so reuse it instead of
+    // recomputing it inside the grouping pass.
+    let stats = file_type_allocation::compute_file_types(
+        files
+            .iter()
+            .map(|file| (file.extension.clone(), file.size_bytes)),
+        total,
+    );
 
     let mut summary = merge_stats(summaries);
     summary.file_types = stats.clone();

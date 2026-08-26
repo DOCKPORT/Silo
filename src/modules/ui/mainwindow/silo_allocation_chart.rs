@@ -29,9 +29,9 @@ use crate::modules::ui::theme::{DETAIL, GREY, TEAL, ZEBRA};
 
 use super::Message;
 
-/// The id of the chart scrollable, used to reset it to the top when the open
-/// breakdown changes.
-pub const SCROLL_ID: &str = "allocation-chart";
+/// The id of the chart scrollable. Kept so an external scroll control can be
+/// wired later; nothing outside this module uses it today.
+const SCROLL_ID: &str = "allocation-chart";
 
 /// The font size of the chart row text, in reference pixels.
 const ROW_TEXT_SIZE: f32 = 18.0;
