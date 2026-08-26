@@ -66,7 +66,7 @@ const CONTENT_GAP: f32 = 20.0;
 const BUTTON_SPACING: f32 = 20.0;
 
 /// The font size of the STATUS box lines, in reference pixels.
-const STATUS_TEXT_SIZE: f32 = 14.0;
+const STATUS_TEXT_SIZE: f32 = 16.0;
 
 /// The vertical gap between two STATUS box lines, in reference pixels.
 const STATUS_LINE_SPACING: f32 = 6.0;

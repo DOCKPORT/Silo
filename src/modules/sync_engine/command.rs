@@ -31,8 +31,12 @@ pub(crate) fn build(plan: &SyncPlan) -> Command {
     // Mirror semantics: the destination matches the source exactly.
     cmd.arg("--delete");
 
+    // Empty patterns never exclude anything; skip them so rsync never
+    // receives an empty `--exclude=` argument.
     for ex in &plan.excludes {
-        cmd.arg(format!("--exclude={ex}"));
+        if !ex.trim().is_empty() {
+            cmd.arg(format!("--exclude={ex}"));
+        }
     }
 
     // Sources are passed as-is so the folder itself is copied into the destination.

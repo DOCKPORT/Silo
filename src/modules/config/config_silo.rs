@@ -270,8 +270,10 @@ fn remove_data_path_from(db: &Path, path: &Path) -> Result<(), ConfigError> {
 
 /// Replace all exclude patterns in the settings database.
 ///
-/// Deletes every row in `exclude`, then inserts one row per non-empty
-/// pattern, in order. Empty patterns are skipped.
+/// Deletes every row in `exclude`, then inserts one row per pattern, in
+/// order. Empty patterns are stored too, so the table always mirrors the
+/// dialog's chip list exactly and the index-to-rowid mapping in
+/// [`update_exclude`] stays valid.
 ///
 /// The store must be initialized with [`init`] first.
 pub fn replace_excludes(excludes: &[String]) -> Result<(), ConfigError> {
@@ -286,7 +288,7 @@ fn replace_excludes_from(db: &Path, excludes: &[String]) -> Result<(), ConfigErr
     tx.execute("DELETE FROM exclude", [])?;
     {
         let mut stmt = tx.prepare("INSERT INTO exclude (pattern) VALUES (?1)")?;
-        for pattern in excludes.iter().filter(|pattern| !pattern.is_empty()) {
+        for pattern in excludes {
             stmt.execute([pattern.as_str()])?;
         }
     }
