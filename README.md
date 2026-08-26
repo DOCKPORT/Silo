@@ -2,19 +2,19 @@
 
 # Silo
 
-Silo is an rsync GUI application. It lets you define a body of data — a "silo" — by selecting & excluding folders from source, then mirror that silo to a destination with rsync. The interface will also show you an analytical breakdown of your populated silo. 
+Silo is an rsync GUI application. It lets you define a body of data — a "silo" — by selecting & excluding folders from source, then mirror that silo to a destination with rsync. The interface also shows you an analytical breakdown of your populated silo. 
 Beyond just backing up, you'll have a clear, comprehensive overview of everything inside your siloed data.
 The UI interface carries a theme inspired by the TV show *Silo*.
 
 > **Status: Early development.**
 > This project is in the early stages of development.
 
-## Planned features
+## Features
 
 - Populate a silo by selecting folders.
-- Persist silo settings (paths, excludes, destination, timestamps) to a local SQLite store under `~/.local`
+- Persist silo settings (paths, excludes, destination) to a local SQLite store under `~/.local`
 - Mirror the silo to any local destination using rsync, with the destination kept as a 100% mirror of the source
-- Silo monitoring: overall size, item/file counts, last-sync timestamp and more
+- Silo monitoring: overall size, item/file counts and more
 
 ## Tech stack
 
