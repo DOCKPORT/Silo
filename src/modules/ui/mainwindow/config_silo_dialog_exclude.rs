@@ -30,6 +30,10 @@ const CHIP_PAD: f32 = 10.0;
 /// The padding inside the text input, in reference pixels.
 const INPUT_PAD: f32 = 4.0;
 
+/// The font size of the pattern chip text, in reference pixels. Matches the
+/// folder chips so the two lists look consistent.
+const CHIP_TEXT_SIZE: f32 = 19.0;
+
 /// The font size of the delete menu text, in reference pixels.
 const MENU_TEXT_SIZE: f32 = 16.0;
 
@@ -71,6 +75,7 @@ pub fn view<'a>(
 fn pattern_chip<'a>(pattern: &'a str, index: usize) -> Element<'a, Message> {
     let input = TextInput::new("", pattern)
         .on_input(move |value| Message::Config(ConfigMsg::ExcludePatternChanged(index, value)))
+        .size(sp(CHIP_TEXT_SIZE))
         .padding(sp(INPUT_PAD))
         .style(|_theme: &Theme, _status: Status| text_input::Style {
             background: Background::Color(BACK),

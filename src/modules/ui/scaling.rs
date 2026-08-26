@@ -80,6 +80,12 @@ pub struct Scaling {
     pub screen_size: Size,
     /// The scale factor (window / reference), stored as `f32` bits.
     factor_bits: AtomicU32,
+    /// The current window width, stored as `f32` bits and updated on every
+    /// resize so dialog positioning follows the live client area.
+    width_bits: AtomicU32,
+    /// The current window height, stored as `f32` bits and updated on every
+    /// resize so dialog positioning follows the live client area.
+    height_bits: AtomicU32,
 }
 
 impl Scaling {
@@ -92,6 +98,8 @@ impl Scaling {
             Scaling {
                 screen_size,
                 factor_bits: AtomicU32::new(factor.to_bits()),
+                width_bits: AtomicU32::new(screen_size.width.to_bits()),
+                height_bits: AtomicU32::new(screen_size.height.to_bits()),
             }
         })
     }
@@ -112,17 +120,28 @@ impl Scaling {
 
     /// Update the scale factor from the current window size.
     ///
-    /// Called on every window resize so `sp` values scale live. A resize that
-    /// would produce the same factor as the current one is ignored, so a
-    /// spurious first event does not invalidate the freshly-computed layout
-    /// (which prevents a startup jump).
+    /// Called on every window resize so `sp` values scale live. Also records
+    /// the live window size, so dialog views can position against the current
+    /// client area. A resize that would produce the same factor as the current
+    /// one is ignored for the factor, so a spurious first event does not
+    /// invalidate the freshly-computed layout (which prevents a startup jump).
     pub fn set_window_size(&self, width: f32, height: f32) {
+        // Record the live window size first, so it stays current even when
+        // the scale factor itself does not change.
+        self.width_bits.store(width.to_bits(), Ordering::Relaxed);
+        self.height_bits.store(height.to_bits(), Ordering::Relaxed);
+
         let factor = compute_factor(width, height);
         let current = self.factor();
         if (factor - current).abs() < 1e-4 {
             return;
         }
         self.factor_bits.store(factor.to_bits(), Ordering::Relaxed);
+    }
+
+    /// The current window height, in physical pixels.
+    pub fn window_height(&self) -> f32 {
+        f32::from_bits(self.height_bits.load(Ordering::Relaxed))
     }
 
     /// Scales a pixel value from the reference resolution to the current size.

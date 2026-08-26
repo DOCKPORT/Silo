@@ -139,9 +139,10 @@ pub fn view<'a>(state: &'a SyncState) -> Element<'a, Message> {
     let box_area = MouseArea::new(dialog_box).on_press(Message::NoOp);
 
     // Keep the box's top edge where a `TOP_ANCHOR_HEIGHT`-tall centered box
-    // would sit, so the taller box grows only downward.
-    let window_height = Scaling::global().screen_size.height;
-    let top = (window_height - sp(TOP_ANCHOR_HEIGHT)) / 2.0;
+    // would sit, so the taller box grows only downward. The anchor follows the
+    // live window height, so the box stays centered as the window shrinks.
+    let window_height = Scaling::global().window_height();
+    let top = ((window_height - sp(TOP_ANCHOR_HEIGHT)) / 2.0).max(0.0);
 
     // The title label, centered just above the box. Its top edge sits
     // `TITLE_SIZE + TITLE_GAP` above the box's top edge, so the label text

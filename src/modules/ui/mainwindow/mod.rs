@@ -37,6 +37,7 @@ use super::scanlines;
 use app::{prepare_breakdown_task, set_hovered, silo_allocation_task, silo_size_task};
 use config_silo_actions::{ConfigMsg, ConfigState};
 use silo_allocation_chart::PreparedBreakdown;
+use silo_stats_table::StatsRow;
 use sync_silo_actions::{SyncMsg, SyncState};
 
 /// The Silo application state.
@@ -84,6 +85,8 @@ pub struct SiloApp {
     breakdown_scroll_offset: f32,
     /// The current viewport height of the ALLOCATION chart, in pixels.
     breakdown_viewport_height: f32,
+    /// The STATS table row whose breakdown is currently expanded, or `None`.
+    selected_stats_row: Option<StatsRow>,
     /// The Config Silo dialog state: the folder and exclude rows plus their
     /// interaction flags.
     config: ConfigState,
@@ -131,6 +134,8 @@ enum Message {
     /// A file breakdown finished preparing in the background; carries the
     /// prepared data.
     BreakdownPrepared(PreparedBreakdown),
+    /// A STATS table row was pressed; toggles its breakdown.
+    StatsRowPressed(StatsRow),
     /// The ALLOCATION chart scrolled; carries the new absolute offset and
     /// viewport height so the virtualized list can pick its visible window.
     BreakdownScrolled {
@@ -250,6 +255,16 @@ fn update(state: &mut SiloApp, message: Message) -> Task<Message> {
             }
             Task::none()
         }
+        Message::StatsRowPressed(kind) => {
+            // Pressing the open row collapses it; pressing any other row
+            // opens it, so only one breakdown is expanded at a time.
+            if state.selected_stats_row == Some(kind) {
+                state.selected_stats_row = None;
+            } else {
+                state.selected_stats_row = Some(kind);
+            }
+            Task::none()
+        }
         Message::BreakdownScrolled {
             offset,
             viewport_height,
@@ -304,6 +319,7 @@ fn view(state: &SiloApp) -> iced::Element<'_, Message> {
         state.allocation_generation,
         state.breakdown_scroll_offset,
         state.breakdown_viewport_height,
+        state.selected_stats_row,
     ));
 
     if state.about_open {

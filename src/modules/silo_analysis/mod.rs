@@ -57,7 +57,9 @@ pub struct DirEntry {
 pub struct FileRef {
     /// The file name.
     pub name: String,
-    /// The path of the file relative to the silo root.
+    /// The silo root folder that contains this file.
+    pub root: PathBuf,
+    /// The path of the file relative to `root`.
     pub relative_path: PathBuf,
     /// The size of the file in bytes.
     pub size_bytes: u64,
@@ -72,10 +74,13 @@ pub struct Stats {
     pub total_files: u64,
     /// Total number of directories inside the silo (excluding the root).
     pub total_dirs: u64,
+    /// Full paths of the directories with no non-excluded files or
+    /// sub-directories.
+    pub empty_folder_paths: Vec<PathBuf>,
     /// Total size of all files in bytes.
     pub total_size_bytes: u64,
-    /// Number of files with a size of zero bytes.
-    pub zero_byte_files: u64,
+    /// The files with a size of zero bytes.
+    pub zero_byte_files: Vec<FileRef>,
     /// The largest file, or `None` if the silo has no files.
     pub largest_file: Option<FileRef>,
     /// The smallest file, or `None` if the silo has no files.
@@ -176,7 +181,11 @@ pub fn silo_allocation(paths: &[PathBuf], excludes: &[String]) -> Allocation {
     let mut summary = merge_stats(summaries);
     summary.file_types = stats.clone();
 
-    Allocation { stats, files, summary }
+    Allocation {
+        stats,
+        files,
+        summary,
+    }
 }
 
 /// Merges the per-folder statistics into one silo-wide summary.
@@ -187,8 +196,15 @@ pub fn silo_allocation(paths: &[PathBuf], excludes: &[String]) -> Allocation {
 fn merge_stats(summaries: Vec<Stats>) -> Stats {
     let total_files = summaries.iter().map(|s| s.total_files).sum();
     let total_dirs = summaries.iter().map(|s| s.total_dirs).sum();
+    let empty_folder_paths = summaries
+        .iter()
+        .flat_map(|s| s.empty_folder_paths.iter().cloned())
+        .collect();
     let total_size_bytes = summaries.iter().map(|s| s.total_size_bytes).sum();
-    let zero_byte_files = summaries.iter().map(|s| s.zero_byte_files).sum();
+    let zero_byte_files = summaries
+        .iter()
+        .flat_map(|s| s.zero_byte_files.iter().cloned())
+        .collect();
 
     let largest_file = summaries
         .iter()
@@ -216,6 +232,7 @@ fn merge_stats(summaries: Vec<Stats>) -> Stats {
     Stats {
         total_files,
         total_dirs,
+        empty_folder_paths,
         total_size_bytes,
         zero_byte_files,
         largest_file,

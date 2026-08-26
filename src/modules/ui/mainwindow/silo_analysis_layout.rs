@@ -15,6 +15,7 @@ use crate::modules::silo_analysis::{FileTypeStat, Stats};
 use crate::modules::ui::crosshatch;
 
 use super::silo_allocation_chart::PreparedBreakdown;
+use super::silo_stats_table::StatsRow;
 use crate::modules::ui::scaling::sp;
 use crate::modules::ui::theme::GREY;
 
@@ -82,7 +83,8 @@ const BOTTOM_PAD: f32 = 30.0;
 /// table; `expanded` is the prepared breakdown to show, if any; `pending` is
 /// the extension being prepared; `generation` lets the chart cache its
 /// subtree across frames; `scroll_offset` and `viewport_height` select the
-/// visible window of the virtualized chart.
+/// visible window of the virtualized chart; `stats_row` is the expanded
+/// STATS table row, if any.
 pub fn view<'a>(
     silo_size: &'a str,
     allocation: &'a [FileTypeStat],
@@ -92,9 +94,12 @@ pub fn view<'a>(
     generation: u64,
     scroll_offset: f32,
     viewport_height: f32,
+    stats_row: Option<StatsRow>,
 ) -> Element<'a, Message> {
-    // The panel top: the bottom edge of the action area plus a gap.
-    let top = super::action_area::content_bottom() + sp(ACTION_GAP);
+    // The panel top: the bottom edge of the action area plus a gap. The
+    // action area positions scale, so the bottom edge must scale too or a
+    // fixed gap opens up as the window shrinks.
+    let top = sp(super::action_area::content_bottom()) + sp(ACTION_GAP);
 
     let header: Element<'static, Message> = Row::new()
         .width(Length::Fill)
@@ -160,7 +165,10 @@ pub fn view<'a>(
                     viewport_height,
                 ),
             ))
-            .push(analysis_box("STATS", super::silo_stats_table::view(summary)));
+            .push(analysis_box(
+                "STATS",
+                super::silo_stats_table::view(summary, stats_row),
+            ));
         content = content.push(boxes_row);
     }
 

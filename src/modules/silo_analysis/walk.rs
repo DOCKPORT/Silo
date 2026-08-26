@@ -31,7 +31,9 @@ pub(crate) fn analyze(root: &Path, excludes: &[String]) -> Result<AnalysisReport
     let mut files = Vec::new();
     let mut dirs = Vec::new();
     let mut scan_errors = Vec::new();
+    let mut empty_folders: Vec<PathBuf> = Vec::new();
 
+    // The root itself is never counted as an empty folder.
     walk_dir(
         root,
         root,
@@ -39,10 +41,11 @@ pub(crate) fn analyze(root: &Path, excludes: &[String]) -> Result<AnalysisReport
         &mut files,
         &mut dirs,
         &mut scan_errors,
+        &mut empty_folders,
     )
     .map_err(AnalysisError::WalkRoot)?;
 
-    let stats = compute_stats(&files, dirs.len() as u64);
+    let stats = compute_stats(root, &files, dirs.len() as u64, &empty_folders);
 
     Ok(AnalysisReport {
         root: root.to_path_buf(),
@@ -67,9 +70,12 @@ fn validate_root(root: &Path) -> Result<(), AnalysisError> {
 /// Recursively walk `dir` and collect every file and directory under it.
 ///
 /// Excluded directories are skipped entirely, so their subtree never counts;
-/// excluded files are skipped too. A failed sub-entry is recorded as a string
-/// in `scan_errors`; the walk continues with the next entry. Only a read
-/// failure on `dir` itself is propagated to the caller.
+/// excluded files are skipped too. A directory with no non-excluded children
+/// has its full path pushed to `empty_folders`. Returns the number of
+/// non-excluded children of `dir`, so the caller can tell whether the
+/// directory was empty. A failed sub-entry is recorded as a string in
+/// `scan_errors`; the walk continues with the next entry. Only a read failure
+/// on `dir` itself is propagated.
 fn walk_dir(
     dir: &Path,
     root: &Path,
@@ -77,8 +83,10 @@ fn walk_dir(
     files: &mut Vec<FileEntry>,
     dirs: &mut Vec<DirEntry>,
     scan_errors: &mut Vec<String>,
-) -> Result<(), io::Error> {
+    empty_folders: &mut Vec<PathBuf>,
+) -> Result<u64, io::Error> {
     let mut entries = fs::read_dir(dir)?;
+    let mut child_count: u64 = 0;
 
     while let Some(entry) = entries.next() {
         let entry = match entry {
@@ -111,12 +119,25 @@ fn walk_dir(
         }
 
         if is_dir {
+            child_count += 1;
             let rel = relative_path(&path, root);
             dirs.push(DirEntry {
                 name,
                 relative_path: rel,
             });
-            walk_dir(&path, root, excludes, files, dirs, scan_errors)?;
+            let sub_children = walk_dir(
+                &path,
+                root,
+                excludes,
+                files,
+                dirs,
+                scan_errors,
+                empty_folders,
+            )?;
+            // A directory with no non-excluded children is empty.
+            if sub_children == 0 {
+                empty_folders.push(path);
+            }
             continue;
         }
 
@@ -136,11 +157,12 @@ fn walk_dir(
             if metadata.is_dir() {
                 continue;
             }
+            child_count += 1;
             record_file(&path, root, &name, &metadata, files);
         }
     }
 
-    Ok(())
+    Ok(child_count)
 }
 
 /// Collect a single file entry with its metadata.
@@ -171,22 +193,31 @@ fn relative_path(path: &Path, root: &Path) -> PathBuf {
 }
 
 /// Compute summary statistics from the collected files.
-fn compute_stats(files: &[FileEntry], total_dirs: u64) -> Stats {
+fn compute_stats(
+    root: &Path,
+    files: &[FileEntry],
+    total_dirs: u64,
+    empty_folders: &[PathBuf],
+) -> Stats {
     let total_files = files.len() as u64;
     let total_size_bytes: u64 = files.iter().map(|f| f.size_bytes).sum();
-    let zero_byte_files = files.iter().filter(|f| f.size_bytes == 0).count() as u64;
+    let zero_byte_files = files
+        .iter()
+        .filter(|f| f.size_bytes == 0)
+        .map(|f| file_ref(root, f))
+        .collect();
 
     let largest_file = files
         .iter()
         .max_by(|a, b| a.size_bytes.cmp(&b.size_bytes))
-        .map(file_ref);
+        .map(|f| file_ref(root, f));
     // Zero-byte files never win: the smallest file must hold at least one
     // byte. Zero-byte files have their own stat.
     let smallest_file = files
         .iter()
         .filter(|f| f.size_bytes >= 1)
         .min_by(|a, b| a.size_bytes.cmp(&b.size_bytes))
-        .map(file_ref);
+        .map(|f| file_ref(root, f));
 
     let average_file_size_bytes = if total_files == 0 {
         None
@@ -200,18 +231,19 @@ fn compute_stats(files: &[FileEntry], total_dirs: u64) -> Stats {
         .iter()
         .filter(|f| f.modified.is_some())
         .min_by(|a, b| a.modified.cmp(&b.modified))
-        .map(file_ref);
+        .map(|f| file_ref(root, f));
     let newest_file = files
         .iter()
         .filter(|f| f.modified.is_some())
         .max_by(|a, b| a.modified.cmp(&b.modified))
-        .map(file_ref);
+        .map(|f| file_ref(root, f));
 
     let file_types = file_type_allocation::compute_file_types(files, total_size_bytes);
 
     Stats {
         total_files,
         total_dirs,
+        empty_folder_paths: empty_folders.to_vec(),
         total_size_bytes,
         zero_byte_files,
         largest_file,
@@ -224,9 +256,10 @@ fn compute_stats(files: &[FileEntry], total_dirs: u64) -> Stats {
 }
 
 /// Build a `FileRef` from a file entry.
-fn file_ref(entry: &FileEntry) -> FileRef {
+fn file_ref(root: &Path, entry: &FileEntry) -> FileRef {
     FileRef {
         name: entry.name.clone(),
+        root: root.to_path_buf(),
         relative_path: entry.relative_path.clone(),
         size_bytes: entry.size_bytes,
         modified: entry.modified,
