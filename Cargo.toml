@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+dirs = "6"
 iced = { version = "0.14", features = ["canvas", "lazy", "svg", "image"] }
 resvg = "0.45.1"
 rfd = "0.17"
