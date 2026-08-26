@@ -29,6 +29,8 @@ The UI interface carries a theme inspired by the TV show *Silo*.
 
 ## UI preview
 
+![Silo](logo/Screenshot_2026-08-26_04-33-19.png)
+
 ![Silo](logo/Screenshot_2026-08-24_09-25-26.png)
 
 ## More about rsync:
