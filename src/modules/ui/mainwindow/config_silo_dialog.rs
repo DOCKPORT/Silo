@@ -8,7 +8,7 @@
 //! later step.
 
 use iced::mouse;
-use iced::widget::{Column, MouseArea, Row, Stack, Tooltip, container, text, tooltip};
+use iced::widget::{Column, MouseArea, Row, Stack, container, text};
 use iced::{Border, Color, Element, Length, Padding};
 
 use crate::modules::ui::crosshatch;
@@ -64,8 +64,8 @@ const CLOSE_PAD_H: f32 = 28.0;
 /// The horizontal padding of the ? help button, in reference pixels.
 const HELP_PAD_H: f32 = 18.0;
 
-/// The gap between the ? help button and its tooltip, in reference pixels.
-const HELP_TOOLTIP_GAP: f32 = 8.0;
+/// The gap between the dialog box and the help tooltip, in reference pixels.
+const HELP_TOOLTIP_GAP: f32 = 10.0;
 
 /// The padding inside the help tooltip box, in reference pixels.
 const HELP_TOOLTIP_PAD: f32 = 12.0;
@@ -204,7 +204,7 @@ pub fn view<'a>(state: &'a ConfigState) -> Element<'a, Message> {
             bottom: 0.0,
         });
 
-    Stack::new()
+    let mut stack = Stack::new()
         .push(backdrop)
         .push(crosshatch::overlay())
         .push(
@@ -219,8 +219,16 @@ pub fn view<'a>(state: &'a ConfigState) -> Element<'a, Message> {
                     bottom: 0.0,
                 }),
         )
-        .push(title)
-        .into()
+        .push(title);
+
+    // The help tooltip floats just left of the dialog box, so it never
+    // changes the box's internal layout. It is part of the dialog's own
+    // layer, so the scanline overlay covers it like every dialog element.
+    if state.help_hovered {
+        stack = stack.push(help_tooltip_layer(top));
+    }
+
+    stack.into()
 }
 
 /// Builds the CLOSE button that closes the dialog.
@@ -299,56 +307,81 @@ fn help_button(hovered: bool) -> Element<'static, Message> {
         .into()
 }
 
-/// Builds the help tooltip content: two paragraphs explaining the SELECT
-/// FOLDERS and EXCLUDE DATA panels.
+/// Builds the help tooltip box: two paragraphs explaining the SELECT FOLDERS
+/// and EXCLUDE DATA panels.
 ///
-/// The fixed width wraps each paragraph into short lines. The tooltip box
-/// styling (background, border, padding) is applied by the [`Tooltip`]
-/// widget that hosts this content.
-fn help_tooltip() -> Element<'static, Message> {
-    Column::new()
-        .width(Length::Fixed(sp(HELP_TOOLTIP_WIDTH)))
-        .spacing(sp(HELP_TEXT_SPACING))
-        .push(
-            text(
-                "SELECT FOLDER: Select source folders that make up \
-                 your silo. They are mirrored to the destination.",
+/// The fixed width wraps each paragraph into short lines. The box is styled
+/// to match the dialog: a dark fill with a DETAIL border.
+fn help_tooltip_content() -> Element<'static, Message> {
+    container(
+        Column::new()
+            .width(Length::Fixed(sp(HELP_TOOLTIP_WIDTH)))
+            .spacing(sp(HELP_TEXT_SPACING))
+            .push(
+                text(
+                    "SELECT FOLDER: Select source folders that make up \
+                     your silo. They are mirrored to the destination.",
+                )
+                .size(sp(HELP_TEXT_SIZE))
+                .color(GREY),
             )
-            .size(sp(HELP_TEXT_SIZE))
-            .color(GREY),
-        )
-        .push(
-            text(
-                "EXCLUDE DATA: To skip files or folders during \
-                 sync, type folder name or file type.",
-            )
-            .size(sp(HELP_TEXT_SIZE))
-            .color(GREY),
-        )
+            .push(
+                text(
+                    "EXCLUDE DATA: To skip files or folders during \
+                     sync, type folder name or file type.",
+                )
+                .size(sp(HELP_TEXT_SIZE))
+                .color(GREY),
+            ),
+    )
+    .padding(sp(HELP_TOOLTIP_PAD))
+    .style(|_| container::Style {
+        background: Some(BACK.into()),
+        border: Border {
+            color: DETAIL,
+            width: sp(BORDER_WIDTH),
+            radius: 0.0.into(),
+        },
+        ..container::Style::default()
+    })
+    .into()
+}
+
+/// Builds the help tooltip layer, floating just left of the dialog box.
+///
+/// The tooltip box sits at the left of the box, vertically aligned with the
+/// bottom button row, so it never changes the box's internal layout. It is
+/// part of the dialog's own layer, so the scanline overlay covers it like
+/// every dialog element. `top` is the dialog box's top edge, in pixels.
+fn help_tooltip_layer(top: f32) -> Element<'static, Message> {
+    // The dialog box is centered, so its left edge is half the window width
+    // away from the box width.
+    let window_width = Scaling::global().window_width();
+    let box_left = ((window_width - sp(DIALOG_WIDTH)) / 2.0).max(0.0);
+    let tooltip_width = sp(HELP_TOOLTIP_WIDTH) + 2.0 * sp(HELP_TOOLTIP_PAD);
+    let left = box_left - sp(HELP_TOOLTIP_GAP) - tooltip_width;
+
+    // Align the tooltip's top with the bottom button row's top edge.
+    let button_top = top + sp(DIALOG_HEIGHT) - sp(BOTTOM_PAD) - sp(CLOSE_HEIGHT);
+
+    container(MouseArea::new(help_tooltip_content()).on_press(Message::NoOp))
+        .width(Length::Fill)
+        .height(Length::Fill)
+        .align_x(iced::alignment::Horizontal::Left)
+        .align_y(iced::alignment::Vertical::Top)
+        .padding(Padding {
+            top: button_top,
+            left: left.max(0.0),
+            right: 0.0,
+            bottom: 0.0,
+        })
         .into()
 }
 
 /// Builds the ? help button row, pinned to the left side of the dialog.
-///
-/// The button carries the help tooltip, which appears above it on hover. The
-/// tooltip box is styled to match the dialog: a dark fill with a DETAIL
-/// border.
 fn help_row(hovered: bool) -> Element<'static, Message> {
-    container(
-        Tooltip::new(help_button(hovered), help_tooltip(), tooltip::Position::Top)
-            .gap(sp(HELP_TOOLTIP_GAP))
-            .padding(sp(HELP_TOOLTIP_PAD))
-            .style(|_| container::Style {
-                background: Some(BACK.into()),
-                border: Border {
-                    color: DETAIL,
-                    width: sp(BORDER_WIDTH),
-                    radius: 0.0.into(),
-                },
-                ..container::Style::default()
-            }),
-    )
-    .width(Length::Fill)
-    .align_x(iced::alignment::Horizontal::Left)
-    .into()
+    container(help_button(hovered))
+        .width(Length::Fill)
+        .align_x(iced::alignment::Horizontal::Left)
+        .into()
 }

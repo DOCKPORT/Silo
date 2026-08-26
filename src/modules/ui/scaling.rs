@@ -144,6 +144,11 @@ impl Scaling {
         f32::from_bits(self.height_bits.load(Ordering::Relaxed))
     }
 
+    /// The current window width, in physical pixels.
+    pub fn window_width(&self) -> f32 {
+        f32::from_bits(self.width_bits.load(Ordering::Relaxed))
+    }
+
     /// Scales a pixel value from the reference resolution to the current size.
     ///
     /// Usage: `sp(400)` returns 400 × `scale_factor`.
