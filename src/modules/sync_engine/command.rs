@@ -6,6 +6,9 @@
 //! The built command is, roughly:
 //! `rsync -a --delete --exclude=<each> <each source> <destination>/`
 //!
+//! Each exclude pattern is an app keyword, converted to an rsync pattern
+//! first (see [`rsync_exclude`]) so rsync honors the SILO SIZE semantics.
+//!
 //! Sources are passed as-is (no trailing slash), so rsync copies the folder
 //! itself into the destination. The destination keeps a trailing slash, which
 //! makes it the mirror root that holds each source as its own named folder.
@@ -34,8 +37,9 @@ pub(crate) fn build(plan: &SyncPlan) -> Command {
     // Empty patterns never exclude anything; skip them so rsync never
     // receives an empty `--exclude=` argument.
     for ex in &plan.excludes {
-        if !ex.trim().is_empty() {
-            cmd.arg(format!("--exclude={ex}"));
+        let pattern = rsync_exclude(ex);
+        if !pattern.is_empty() {
+            cmd.arg(format!("--exclude={pattern}"));
         }
     }
 
@@ -106,4 +110,45 @@ fn with_trailing_slash(path: &Path) -> OsString {
         s.push("/");
         s
     }
+}
+
+/// Convert one app exclude keyword into an rsync pattern.
+///
+/// The app matches a leading-dot keyword as an extension (for example `.log`
+/// matches every file with the `.log` extension, ignoring case), but rsync
+/// treats `.log` as a literal file name. The keyword must become a glob so
+/// rsync honors it the same way the SILO SIZE label does. A leading `*`
+/// sugar on an extension keyword (for example `*.log`) already means the
+/// same thing in both, so it is normalized to the same glob.
+///
+/// rsync is case-sensitive, so every ASCII letter in the extension becomes a
+/// character class that matches both cases, mirroring the app's
+/// case-insensitive matching. Plain name keywords (for example `target`)
+/// pass through unchanged.
+fn rsync_exclude(pattern: &str) -> String {
+    let pattern = pattern.trim();
+    let Some(ext) = pattern
+        .strip_prefix('*')
+        .unwrap_or(pattern)
+        .strip_prefix('.')
+    else {
+        return pattern.to_string();
+    };
+    format!("*.{}", case_class(ext))
+}
+
+/// Replace every ASCII letter in `ext` with a case-insensitive character
+/// class, so rsync matches it in either case.
+fn case_class(ext: &str) -> String {
+    ext.chars()
+        .map(|ch| {
+            if ch.is_ascii_alphabetic() {
+                let lower = ch.to_ascii_lowercase();
+                let upper = ch.to_ascii_uppercase();
+                format!("[{lower}{upper}]")
+            } else {
+                ch.to_string()
+            }
+        })
+        .collect()
 }
