@@ -23,6 +23,8 @@ pub(super) struct ConfigState {
     pub(super) plus_hovered: bool,
     /// Whether the pointer is currently over the dialog CLOSE button.
     pub(super) close_hovered: bool,
+    /// Whether the pointer is currently over the ? help button.
+    pub(super) help_hovered: bool,
     /// The selected source folders, loaded once when the dialog opens.
     pub(super) folder_paths: Vec<PathBuf>,
     /// The size label of each folder, parallel to `folder_paths`. Filled in
@@ -49,6 +51,7 @@ impl ConfigState {
     pub(super) fn reset(&mut self) {
         self.plus_hovered = false;
         self.close_hovered = false;
+        self.help_hovered = false;
         self.hovered_chip = None;
         self.chip_menu = None;
         self.menu_hovered = false;
@@ -65,6 +68,8 @@ pub(super) enum ConfigMsg {
     PlusHovered(bool),
     /// The pointer entered or left the dialog CLOSE button.
     CloseHovered(bool),
+    /// The pointer entered or left the ? help button.
+    HelpHovered(bool),
     /// The + button in the folder box was pressed; opens the OS native folder
     /// picker.
     PlusPressed,
@@ -132,6 +137,7 @@ pub(super) fn update(state: &mut SiloApp, message: ConfigMsg) -> Task<Message> {
     match message {
         ConfigMsg::PlusHovered(hovered) => set_hovered(&mut state.config.plus_hovered, hovered),
         ConfigMsg::CloseHovered(hovered) => set_hovered(&mut state.config.close_hovered, hovered),
+        ConfigMsg::HelpHovered(hovered) => set_hovered(&mut state.config.help_hovered, hovered),
         ConfigMsg::PlusPressed => {
             // Open the OS native folder picker. The picked folder arrives as
             // `ConfigMsg::FolderPicked`; the folder list is added in a later

@@ -3,16 +3,17 @@
 //! Shown when the CONFIG. SILO button in the action area is pressed. A
 //! centered dialog box sits on a dimmed full-window backdrop. Pressing the
 //! backdrop or the CLOSE button closes the dialog. The dialog box holds the
-//! folder and exclude panel boxes; the silo settings fields are added in a
+//! folder and exclude panel boxes; a ? help button at the bottom left shows a
+//! tooltip explaining both panels. The silo settings fields are added in a
 //! later step.
 
 use iced::mouse;
-use iced::widget::{Column, MouseArea, Stack, container, text};
+use iced::widget::{Column, MouseArea, Row, Stack, Tooltip, container, text, tooltip};
 use iced::{Border, Color, Element, Length, Padding};
 
 use crate::modules::ui::crosshatch;
 use crate::modules::ui::scaling::{Scaling, sp};
-use crate::modules::ui::theme::{BACK, DETAIL, ORANGE, TEAL};
+use crate::modules::ui::theme::{BACK, DETAIL, GREY, ORANGE, TEAL};
 
 use super::Message;
 use super::config_silo_actions::{ConfigMsg, ConfigState};
@@ -60,6 +61,25 @@ const CLOSE_HEIGHT: f32 = 44.0;
 /// The horizontal padding of the CLOSE button, in reference pixels.
 const CLOSE_PAD_H: f32 = 28.0;
 
+/// The horizontal padding of the ? help button, in reference pixels.
+const HELP_PAD_H: f32 = 18.0;
+
+/// The gap between the ? help button and its tooltip, in reference pixels.
+const HELP_TOOLTIP_GAP: f32 = 8.0;
+
+/// The padding inside the help tooltip box, in reference pixels.
+const HELP_TOOLTIP_PAD: f32 = 12.0;
+
+/// The width of the help tooltip content, in reference pixels. The fixed
+/// width wraps the explanation text into short lines.
+const HELP_TOOLTIP_WIDTH: f32 = 360.0;
+
+/// The font size of the help tooltip text, in reference pixels.
+const HELP_TEXT_SIZE: f32 = 16.0;
+
+/// The gap between the two help tooltip paragraphs, in reference pixels.
+const HELP_TEXT_SPACING: f32 = 6.0;
+
 /// Builds the Config Silo dialog overlay.
 ///
 /// `state` holds the dialog's rows and interaction flags: the folder chips,
@@ -69,7 +89,8 @@ const CLOSE_PAD_H: f32 = 28.0;
 ///
 /// Returns a full-window overlay: a dimmed backdrop that closes the dialog on
 /// press, and a dialog box holding the folder and exclude panel boxes plus
-/// the CLOSE button. A "Configure Silo" title label sits just above the box.
+/// the ? help and CLOSE buttons. A "Configure Silo" title label sits just
+/// above the box.
 /// The box keeps the top position of a `TOP_ANCHOR_HEIGHT`-tall centered box,
 /// so the extra height extends only downward. The settings fields are added
 /// in a later step.
@@ -93,8 +114,8 @@ pub fn view<'a>(state: &'a ConfigState) -> Element<'a, Message> {
     .on_press(Message::CloseConfigSiloDialog)
     .interaction(mouse::Interaction::Idle);
 
-    // The dialog content: the panel boxes on top and the CLOSE button at the
-    // bottom of the box.
+    // The dialog content: the panel boxes on top and the help and CLOSE
+    // buttons at the bottom of the box.
     let content = Column::new()
         .width(Length::Fill)
         .height(Length::Fill)
@@ -112,7 +133,12 @@ pub fn view<'a>(state: &'a ConfigState) -> Element<'a, Message> {
             state.exclude_menu,
             state.exclude_menu_hovered,
         ))
-        .push(close_row(state.close_hovered));
+        .push(
+            Row::new()
+                .width(Length::Fill)
+                .push(help_row(state.help_hovered))
+                .push(close_row(state.close_hovered)),
+        );
 
     let dialog_box = container(content)
         .width(Length::Fixed(sp(DIALOG_WIDTH)))
@@ -238,4 +264,91 @@ fn close_row(hovered: bool) -> Element<'static, Message> {
         .width(Length::Fill)
         .align_x(iced::alignment::Horizontal::Right)
         .into()
+}
+
+/// Builds the ? help button that reveals the dialog help tooltip.
+///
+/// The button matches the CLOSE button look: teal text in a bordered
+/// rectangle. The border turns ORANGE while the pointer hovers. The button
+/// has no press action; it only reveals the tooltip on hover.
+fn help_button(hovered: bool) -> Element<'static, Message> {
+    let label = container(text("?").size(sp(TEXT_SIZE)).color(TEAL))
+        .height(Length::Fixed(sp(CLOSE_HEIGHT)))
+        .align_x(iced::alignment::Horizontal::Center)
+        .align_y(iced::alignment::Vertical::Center)
+        .padding(Padding {
+            left: sp(HELP_PAD_H),
+            right: sp(HELP_PAD_H),
+            top: 0.0,
+            bottom: 0.0,
+        })
+        .style(move |_| container::Style {
+            background: None,
+            border: Border {
+                color: if hovered { ORANGE } else { DETAIL },
+                width: sp(BORDER_WIDTH),
+                radius: 0.0.into(),
+            },
+            ..container::Style::default()
+        });
+
+    MouseArea::new(label)
+        .on_enter(Message::Config(ConfigMsg::HelpHovered(true)))
+        .on_exit(Message::Config(ConfigMsg::HelpHovered(false)))
+        .interaction(mouse::Interaction::Pointer)
+        .into()
+}
+
+/// Builds the help tooltip content: two paragraphs explaining the SELECT
+/// FOLDERS and EXCLUDE DATA panels.
+///
+/// The fixed width wraps each paragraph into short lines. The tooltip box
+/// styling (background, border, padding) is applied by the [`Tooltip`]
+/// widget that hosts this content.
+fn help_tooltip() -> Element<'static, Message> {
+    Column::new()
+        .width(Length::Fixed(sp(HELP_TOOLTIP_WIDTH)))
+        .spacing(sp(HELP_TEXT_SPACING))
+        .push(
+            text(
+                "SELECT FOLDER: Select source folders that make up \
+                 your silo. They are mirrored to the destination.",
+            )
+            .size(sp(HELP_TEXT_SIZE))
+            .color(GREY),
+        )
+        .push(
+            text(
+                "EXCLUDE DATA: To skip files or folders during \
+                 sync, type folder name or file type.",
+            )
+            .size(sp(HELP_TEXT_SIZE))
+            .color(GREY),
+        )
+        .into()
+}
+
+/// Builds the ? help button row, pinned to the left side of the dialog.
+///
+/// The button carries the help tooltip, which appears above it on hover. The
+/// tooltip box is styled to match the dialog: a dark fill with a DETAIL
+/// border.
+fn help_row(hovered: bool) -> Element<'static, Message> {
+    container(
+        Tooltip::new(help_button(hovered), help_tooltip(), tooltip::Position::Top)
+            .gap(sp(HELP_TOOLTIP_GAP))
+            .padding(sp(HELP_TOOLTIP_PAD))
+            .style(|_| container::Style {
+                background: Some(BACK.into()),
+                border: Border {
+                    color: DETAIL,
+                    width: sp(BORDER_WIDTH),
+                    radius: 0.0.into(),
+                },
+                ..container::Style::default()
+            }),
+    )
+    .width(Length::Fill)
+    .align_x(iced::alignment::Horizontal::Left)
+    .into()
 }
