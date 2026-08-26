@@ -80,7 +80,8 @@ pub fn view(close_hovered: bool) -> Element<'static, Message> {
                 ..container::Style::default()
             }),
     )
-    .on_press(Message::CloseAboutDialog);
+    .on_press(Message::CloseAboutDialog)
+    .interaction(mouse::Interaction::Idle);
 
     // The dialog box content.
     let content = Column::new()

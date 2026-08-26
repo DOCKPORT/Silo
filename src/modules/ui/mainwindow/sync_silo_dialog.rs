@@ -90,7 +90,8 @@ pub fn view<'a>(state: &'a SyncState) -> Element<'a, Message> {
                 ..container::Style::default()
             }),
     )
-    .on_press(Message::CloseSyncSiloDialog);
+    .on_press(Message::CloseSyncSiloDialog)
+    .interaction(mouse::Interaction::Idle);
 
     // The dialog content: the sync settings elements on top and the CLEAR
     // STATUS and CLOSE buttons at the bottom of the box.

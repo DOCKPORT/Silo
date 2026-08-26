@@ -19,9 +19,9 @@ use super::{SyncOutcome, SyncPlan};
 ///
 /// `on_line` is called for every line rsync writes, in order, as the process
 /// runs. rsync writes its progress lines (`--info=progress2`) to standard
-/// output and its warnings to standard error. Progress lines are passed
-/// through but filtered out of the final [`SyncOutcome`], so the STATUS box
-/// shows only the warnings.
+/// output and its warnings to standard error. Only the standard error
+/// output is kept in the final [`SyncOutcome`], so the STATUS box shows only
+/// the warnings.
 ///
 /// When `abort` becomes true, rsync is killed and the outcome is
 /// [`SyncOutcome::Aborted`]. The flag is checked between reads, so the abort
@@ -61,15 +61,9 @@ pub(crate) fn sync_streaming(
         });
     });
 
-    // Progress lines stream live from stdout; any non-progress stdout (for
-    // example a warning) is kept for the outcome.
-    let mut clean_stdout = String::new();
+    // Progress lines stream live from stdout; the outcome keeps only stderr.
     read_lines(stdout, Some(abort), &mut |line| {
         on_line(&line);
-        if !is_progress_line(&line) {
-            clean_stdout.push_str(&line);
-            clean_stdout.push('\n');
-        }
     });
 
     // The user pressed ABORT SYNC: kill rsync so the pipes close and the
@@ -98,12 +92,10 @@ pub(crate) fn sync_streaming(
 
     Ok(match status.code() {
         Some(0) => SyncOutcome::Success {
-            stdout: clean_stdout,
             stderr: clean_stderr,
         },
         code => SyncOutcome::Failure {
             exit_code: code,
-            stdout: clean_stdout,
             stderr: clean_stderr,
         },
     })

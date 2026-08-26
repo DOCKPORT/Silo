@@ -208,53 +208,6 @@ fn load_text_column(
     Ok(values)
 }
 
-/// Persist the silo settings to the default database, replacing all previous
-/// values.
-///
-/// The store must be initialized with [`init`] first.
-pub fn save(settings: &SiloSettings) -> Result<(), ConfigError> {
-    save_to(&default_db_path()?, settings)
-}
-
-/// The same as [`save`], but writes to `db`.
-fn save_to(db: &Path, settings: &SiloSettings) -> Result<(), ConfigError> {
-    let mut conn = Connection::open(db)?;
-    let tx = conn.transaction()?;
-
-    // Replace the multi-valued settings wholesale.
-    tx.execute("DELETE FROM silo_data_paths", [])?;
-    tx.execute("DELETE FROM exclude", [])?;
-
-    {
-        let mut stmt = tx.prepare("INSERT INTO silo_data_paths (path) VALUES (?1)")?;
-        for path in &settings.silo_data_paths {
-            stmt.execute([path.to_string_lossy().into_owned()])?;
-        }
-    }
-
-    {
-        let mut stmt = tx.prepare("INSERT INTO exclude (pattern) VALUES (?1)")?;
-        for pattern in &settings.excludes {
-            stmt.execute([pattern.as_str()])?;
-        }
-    }
-
-    // Replace the singleton row. Deleting then inserting keeps exactly one
-    // row in the table.
-    let dest_path = settings
-        .rsync_dest_path
-        .as_ref()
-        .map(|path| path.to_string_lossy().into_owned());
-    tx.execute("DELETE FROM rsync_dest_path", [])?;
-    tx.execute(
-        "INSERT INTO rsync_dest_path (path) VALUES (?1)",
-        [dest_path],
-    )?;
-
-    tx.commit()?;
-    Ok(())
-}
-
 /// Append one selected source folder to the settings database.
 ///
 /// The folder is stored as its own row in `silo_data_paths`. Existing rows

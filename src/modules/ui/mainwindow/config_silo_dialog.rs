@@ -90,7 +90,8 @@ pub fn view<'a>(state: &'a ConfigState) -> Element<'a, Message> {
                 ..container::Style::default()
             }),
     )
-    .on_press(Message::CloseConfigSiloDialog);
+    .on_press(Message::CloseConfigSiloDialog)
+    .interaction(mouse::Interaction::Idle);
 
     // The dialog content: the panel boxes on top and the CLOSE button at the
     // bottom of the box.

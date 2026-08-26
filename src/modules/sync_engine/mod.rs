@@ -45,12 +45,6 @@ impl SyncPlan {
             binary: PathBuf::from("rsync"),
         }
     }
-
-    /// Set a custom rsync binary path. Used later for the bundled binary.
-    pub fn with_binary(mut self, binary: PathBuf) -> Self {
-        self.binary = binary;
-        self
-    }
 }
 
 /// The result of a sync run.
@@ -58,8 +52,6 @@ impl SyncPlan {
 pub enum SyncOutcome {
     /// rsync exited with code 0.
     Success {
-        /// Captured standard output.
-        stdout: String,
         /// Captured standard error.
         stderr: String,
     },
@@ -67,8 +59,6 @@ pub enum SyncOutcome {
     Failure {
         /// The exit code, or `None` if rsync could not be started at all.
         exit_code: Option<i32>,
-        /// Captured standard output.
-        stdout: String,
         /// Captured standard error.
         stderr: String,
     },
@@ -79,9 +69,9 @@ pub enum SyncOutcome {
 /// Run a sync while streaming rsync's output line by line.
 ///
 /// `on_line` receives every line rsync writes, in order, while the process
-/// runs. Returns the [`SyncOutcome`] with the progress lines filtered out of
-/// the reported output. When `abort` becomes true, rsync is killed and the
-/// outcome is [`SyncOutcome::Aborted`].
+/// runs. Returns the [`SyncOutcome`] carrying the captured standard error.
+/// When `abort` becomes true, rsync is killed and the outcome is
+/// [`SyncOutcome::Aborted`].
 pub fn sync_streaming(
     plan: &SyncPlan,
     abort: &AtomicBool,
