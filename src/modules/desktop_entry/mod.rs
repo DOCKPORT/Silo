@@ -106,7 +106,7 @@ pub fn ensure() {
              Type=Application\n\
              Categories=Utility;\n\
              Terminal=false\n\
-             Comment=Silo Rsync GUI\n",
+             Comment=Silo and Sync data\n",
             target_icon.display()
         );
 
