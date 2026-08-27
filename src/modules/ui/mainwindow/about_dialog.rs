@@ -5,12 +5,12 @@
 //! CLOSE button closes the dialog.
 
 use iced::mouse;
-use iced::widget::{Column, MouseArea, Stack, container, svg, text};
+use iced::widget::{Column, MouseArea, Row, Space, Stack, container, svg, text};
 use iced::{Border, Color, Element, Length, Padding};
 
 use crate::modules::ui::crosshatch;
 use crate::modules::ui::scaling::sp;
-use crate::modules::ui::theme::{BACK, DETAIL, GREY, ORANGE, TEAL};
+use crate::modules::ui::theme::{BACK, DETAIL, ORANGE, TEAL};
 
 use super::Message;
 
@@ -36,6 +36,13 @@ const BANNER_WIDTH: f32 = 540.0;
 
 /// The rendered size of the square GitHub logo, in reference pixels.
 const GITHUB_SIZE: f32 = 40.0;
+
+/// The gap between the version text and the GitHub logo, in reference pixels.
+const VERSION_LOGO_GAP: f32 = 16.0;
+
+/// The extra gap between the version row and the CLOSE button, in reference
+/// pixels.
+const VERSION_CLOSE_GAP: f32 = 32.0;
 
 /// The font size of the version text, in reference pixels.
 const VERSION_SIZE: f32 = 26.0;
@@ -92,20 +99,25 @@ pub fn view(close_hovered: bool) -> Element<'static, Message> {
                 .width(Length::Fixed(sp(BANNER_WIDTH))),
         )
         .push(
-            text(concat!("VERSION ", env!("CARGO_PKG_VERSION")))
-                .size(sp(VERSION_SIZE))
-                .color(TEAL),
+            Row::new()
+                .align_y(iced::alignment::Vertical::Center)
+                .spacing(sp(VERSION_LOGO_GAP))
+                .push(
+                    text(env!("CARGO_PKG_VERSION"))
+                        .size(sp(VERSION_SIZE))
+                        .color(TEAL),
+                )
+                .push(
+                    MouseArea::new(
+                        svg::Svg::new(svg::Handle::from_memory(GITHUB_BYTES))
+                            .width(Length::Fixed(sp(GITHUB_SIZE)))
+                            .height(Length::Fixed(sp(GITHUB_SIZE))),
+                    )
+                    .on_press(Message::OpenGithub)
+                    .interaction(mouse::Interaction::Pointer),
+                ),
         )
-        .push(
-            MouseArea::new(
-                svg::Svg::new(svg::Handle::from_memory(GITHUB_BYTES))
-                    .width(Length::Fixed(sp(GITHUB_SIZE)))
-                    .height(Length::Fixed(sp(GITHUB_SIZE))),
-            )
-            .on_press(Message::OpenGithub)
-            .interaction(mouse::Interaction::Pointer),
-        )
-        .push(text("Silo is an rsync GUI application. It lets you define a body of data — a \"silo\" — by selecting & excluding folders from source, then mirror that silo to a destination with rsync.").size(sp(TEXT_SIZE)).color(GREY))
+        .push(Space::new().height(Length::Fixed(sp(VERSION_CLOSE_GAP))))
         .push(close_button(close_hovered));
 
     let dialog_box = container(content)
