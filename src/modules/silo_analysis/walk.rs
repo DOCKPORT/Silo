@@ -103,7 +103,9 @@ fn walk_dir(
         let name = entry.file_name().to_string_lossy().into_owned();
 
         // Cycle protection: directory symlinks are skipped so the walk cannot
-        // loop back on itself. File symlinks are followed via `fs::metadata`.
+        // loop back on itself. File symlinks are skipped too, so their target
+        // is never counted: the action area SILO SIZE label, the sync delta,
+        // and the folder chips all skip symlinks the same way.
         let file_type = match entry.file_type() {
             Ok(ft) => ft,
             Err(err) => {
@@ -140,8 +142,8 @@ fn walk_dir(
             continue;
         }
 
-        if file_type.is_file() || file_type.is_symlink() {
-            let metadata = match fs::metadata(&path) {
+        if file_type.is_file() {
+            let metadata = match entry.metadata() {
                 Ok(m) => m,
                 Err(err) => {
                     scan_errors.push(format!(
@@ -151,11 +153,6 @@ fn walk_dir(
                     continue;
                 }
             };
-            // A symlink pointing to a directory is skipped, so the walk
-            // cannot loop back on itself. Symlinks to files are recorded.
-            if metadata.is_dir() {
-                continue;
-            }
             child_count += 1;
             record_file(&path, root, &name, &metadata, files);
         }
