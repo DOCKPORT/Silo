@@ -13,7 +13,7 @@ use std::path::PathBuf;
 /// Errors produced by the sync engine.
 #[derive(Debug)]
 pub enum SyncError {
-    /// The binary used for syncing (system `rsync` today, bundled later) could not be found.
+    /// The rsync binary could not be found on PATH or as the bundled AppImage copy.
     RsyncNotFound,
 
     /// The source list was empty. At least one source folder is required.

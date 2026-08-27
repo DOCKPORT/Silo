@@ -3,7 +3,7 @@
 //! This module declares the core subsystems of Silo:
 //! - config: SQLite-backed settings store (sources, excludes, destination, timestamps)
 //! - desktop_entry: AppImage desktop integration (installs a .desktop entry on launch)
-//! - sync_engine: rsync subprocess wrapper (bundled static binary)
+//! - sync_engine: rsync subprocess wrapper (bundled fallback binary)
 //! - silo_analysis: filesystem analysis, size computation, and sync deltas
 //! - ui: Iced graphical interface, with the main window under ui::mainwindow
 //!

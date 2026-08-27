@@ -165,7 +165,8 @@ fn parse_bytes(raw: &str) -> Option<u64> {
 /// plans: a missing binary, an empty source list, a missing source, or a
 /// destination that does not exist or is not a directory.
 pub(crate) fn validate(plan: &SyncPlan) -> Result<(), SyncError> {
-    // The binary must be findable. Defaults to "rsync" in PATH.
+    // The binary must be findable. SyncPlan::new resolves the default: the
+    // system rsync on PATH first, then the bundled AppImage copy.
     if !find_binary(&plan.binary) {
         return Err(SyncError::RsyncNotFound);
     }
@@ -198,7 +199,7 @@ pub(crate) fn validate(plan: &SyncPlan) -> Result<(), SyncError> {
 ///
 /// When the binary is a bare name such as `rsync`, this searches PATH.
 /// When it is an absolute path, this checks the file exists and is executable.
-fn find_binary(binary: &Path) -> bool {
+pub(crate) fn find_binary(binary: &Path) -> bool {
     if binary.components().count() == 1 {
         // Bare name: search PATH.
         if let Some(path_var) = std::env::var_os("PATH") {
