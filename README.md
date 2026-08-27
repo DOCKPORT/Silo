@@ -6,8 +6,6 @@ Silo is an rsync GUI application. It lets you define a body of data — a "silo"
 Beyond just backing up, you'll have a clear, comprehensive overview of everything inside your siloed data.
 The UI interface carries a theme inspired by the TV show *Silo*.
 
-> **Status: Early development.**
-> This project is in the early stages of development.
 
 ## Features
 
