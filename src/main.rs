@@ -1,13 +1,12 @@
 //! Silo binary crate root.
-//!
 //! Launches the Iced main window. The subsystem modules (config, desktop_entry,
-//! sync_engine, silo_analysis, ui) are declared here so they are compiled and
+//! sync_engine, silo_analysis, ui) are declared here, they are compiled and
 //! reachable.
 
 mod modules;
 
 fn main() -> iced::Result {
-    // Resolve the scale factor before any other startup work so the UI
+    // Resolve the scale factor before any other startup work, the UI
     // renders correctly from the very first frame.
     modules::ui::scaling::Scaling::init();
 

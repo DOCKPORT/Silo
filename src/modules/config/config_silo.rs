@@ -1,4 +1,4 @@
-//! Config: SQLite-backed settings store for Silo.
+//! Config: SQLite-backed settings for Silo.
 //!
 //! This module persists the silo settings under `~/.local/share/silo/` in a
 //! SQLite database. It stores settings only: selected source folder paths,
@@ -31,15 +31,12 @@ use rusqlite::{Connection, OptionalExtension};
 const DB_FILE_NAME: &str = "silo.db";
 
 /// Location of the settings directory relative to the user's data home.
-///
 /// Used only when `XDG_DATA_HOME` is unset, in which case the XDG default
 /// `$HOME/.local/share` applies.
 const DB_DIR_NAME: &str = ".local/share/silo";
 
-/// The silo settings persisted in the database.
 ///
-/// The shapes match what the sync engine consumes ([`crate::modules::sync_engine::SyncPlan`]),
-/// so the UI and the engine can pass the settings through directly.
+
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct SiloSettings {
     /// Selected source folders. Stored one row per folder in `silo_data_paths`.
