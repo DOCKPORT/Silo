@@ -39,7 +39,7 @@ pub fn load_app_icon() -> Option<iced::window::Icon> {
     // tiny-skia stores premultiplied alpha; iced expects straight RGBA.
     let premult = pixmap.data();
     let mut rgba = Vec::with_capacity(premult.len());
-    for px in premult.chunks_exact(4) {
+    for px in premult.as_chunks::<4>().0 {
         let (r, g, b, a) = (px[0], px[1], px[2], px[3]);
         if a == 0 {
             rgba.extend_from_slice(&[0, 0, 0, 0]);

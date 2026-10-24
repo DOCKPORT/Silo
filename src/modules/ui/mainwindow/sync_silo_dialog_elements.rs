@@ -71,6 +71,30 @@ const STATUS_TEXT_SIZE: f32 = 16.0;
 /// The vertical gap between two STATUS box lines, in reference pixels.
 const STATUS_LINE_SPACING: f32 = 6.0;
 
+/// The inputs for the sync settings panel area.
+pub struct ViewParams<'a> {
+    /// The saved destination, or `None` before one is picked.
+    pub dest_path: Option<&'a Path>,
+    /// Whether the pointer is over the + button.
+    pub dest_plus_hovered: bool,
+    /// Whether the pointer is over the destination chip.
+    pub dest_chip_hovered: bool,
+    /// Whether the remove menu is open.
+    pub dest_menu_open: bool,
+    /// Whether the pointer is over that remove menu.
+    pub dest_menu_hovered: bool,
+    /// Whether the pointer is over the DRY-RUN button.
+    pub dry_run_hovered: bool,
+    /// Whether the pointer is over the SYNC button.
+    pub sync_run_hovered: bool,
+    /// The lines shown in the STATUS box.
+    pub status: &'a [StatusLine],
+    /// The live sync progress, or `None` when no sync runs.
+    pub progress: Option<&'a SyncProgress>,
+    /// True while a dry run or sync runs; disables the action buttons.
+    pub busy: bool,
+}
+
 /// Builds the sync settings panel area.
 ///
 /// Returns a full-size column holding the SYNC DESTINATION box at the top,
@@ -87,18 +111,20 @@ const STATUS_LINE_SPACING: f32 = 6.0;
 /// when no sync is running. `busy` is true while a dry run or sync runs and
 /// disables the DRY-RUN and SYNC buttons. The source folders and excludes
 /// panels are added in later steps.
-pub fn view<'a>(
-    dest_path: Option<&'a Path>,
-    dest_plus_hovered: bool,
-    dest_chip_hovered: bool,
-    dest_menu_open: bool,
-    dest_menu_hovered: bool,
-    dry_run_hovered: bool,
-    sync_run_hovered: bool,
-    status: &'a [StatusLine],
-    progress: Option<&SyncProgress>,
-    busy: bool,
-) -> Element<'a, Message> {
+pub fn view<'a>(params: ViewParams<'a>) -> Element<'a, Message> {
+    let ViewParams {
+        dest_path,
+        dest_plus_hovered,
+        dest_chip_hovered,
+        dest_menu_open,
+        dest_menu_hovered,
+        dry_run_hovered,
+        sync_run_hovered,
+        status,
+        progress,
+        busy,
+    } = params;
+
     Column::new()
         .width(Length::Fill)
         .height(Length::Fill)

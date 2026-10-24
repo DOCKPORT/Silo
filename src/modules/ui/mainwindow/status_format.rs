@@ -94,16 +94,16 @@ fn reformat_stats_summary(summary: &str) -> String {
 fn reformat_stats_line(line: &str) -> String {
     // "label: N bytes", for example "Total file size: 7,423,077,535 bytes".
     if let Some((label, raw)) = line.rsplit_once(": ") {
-        if let Some(rest) = raw.strip_suffix(" bytes") {
-            if let Some(bytes) = parse_bytes(rest) {
-                return format!("{label}: {}", silo_size::human_size(bytes));
-            }
+        if let Some(rest) = raw.strip_suffix(" bytes")
+            && let Some(bytes) = parse_bytes(rest)
+        {
+            return format!("{label}: {}", silo_size::human_size(bytes));
         }
         // "Total bytes sent: 517,176" and "Total bytes received: 2,754".
-        if label.starts_with("Total bytes") {
-            if let Some(bytes) = parse_bytes(raw) {
-                return format!("{label}: {}", silo_size::human_size(bytes));
-            }
+        if label.starts_with("Total bytes")
+            && let Some(bytes) = parse_bytes(raw)
+        {
+            return format!("{label}: {}", silo_size::human_size(bytes));
         }
     }
 
@@ -114,29 +114,27 @@ fn reformat_stats_line(line: &str) -> String {
             && tokens[1] == "bytes"
             && tokens[2] == "received"
             && tokens[4] == "bytes"
+            && let (Some(sent), Some(received)) = (parse_bytes(tokens[0]), parse_bytes(tokens[3]))
         {
-            if let (Some(sent), Some(received)) = (parse_bytes(tokens[0]), parse_bytes(tokens[3])) {
-                return format!(
-                    "sent {}  received {}  {}",
-                    silo_size::human_size(sent),
-                    silo_size::human_size(received),
-                    tokens[5..].join(" ")
-                );
-            }
+            return format!(
+                "sent {}  received {}  {}",
+                silo_size::human_size(sent),
+                silo_size::human_size(received),
+                tokens[5..].join(" ")
+            );
         }
     }
 
     // "total size is 7,423,077,535  speedup is 14,277.07 (DRY RUN)".
-    if let Some(rest) = line.strip_prefix("total size is ") {
-        if let Some((value, tail)) = rest.split_once(char::is_whitespace) {
-            if let Some(bytes) = parse_bytes(value) {
-                return format!(
-                    "total size is {} {}",
-                    silo_size::human_size(bytes),
-                    tail.trim_start()
-                );
-            }
-        }
+    if let Some(rest) = line.strip_prefix("total size is ")
+        && let Some((value, tail)) = rest.split_once(char::is_whitespace)
+        && let Some(bytes) = parse_bytes(value)
+    {
+        return format!(
+            "total size is {} {}",
+            silo_size::human_size(bytes),
+            tail.trim_start()
+        );
     }
 
     line.to_string()

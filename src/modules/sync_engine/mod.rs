@@ -74,12 +74,12 @@ fn default_rsync_binary() -> PathBuf {
             return bundled;
         }
     }
-    if let Some(exe) = std::env::current_exe().ok() {
-        if let Some(dir) = exe.parent() {
-            let sibling = dir.join(RSYNC);
-            if sibling.is_file() {
-                return sibling;
-            }
+    if let Ok(exe) = std::env::current_exe()
+        && let Some(dir) = exe.parent()
+    {
+        let sibling = dir.join(RSYNC);
+        if sibling.is_file() {
+            return sibling;
         }
     }
     name.to_path_buf()

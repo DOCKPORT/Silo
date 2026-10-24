@@ -162,7 +162,7 @@ pub(super) fn update(state: &mut SiloApp, message: ConfigMsg) -> Task<Message> {
                             // Compute the size label for the new folder.
                             return super::config_silo_dialog_folders::size_tasks(&[path])
                                 .pop()
-                                .unwrap_or_else(|| Task::none());
+                                .unwrap_or_else(Task::none);
                         }
                     }
                     Err(err) => {
@@ -176,10 +176,10 @@ pub(super) fn update(state: &mut SiloApp, message: ConfigMsg) -> Task<Message> {
             // Look up the folder by path: the list may have changed while the
             // walk ran, so an index captured at task creation could point to
             // the wrong chip.
-            if let Some(index) = state.config.folder_paths.iter().position(|p| p == &path) {
-                if let Some(slot) = state.config.folder_sizes.get_mut(index) {
-                    *slot = size;
-                }
+            if let Some(index) = state.config.folder_paths.iter().position(|p| p == &path)
+                && let Some(slot) = state.config.folder_sizes.get_mut(index)
+            {
+                *slot = size;
             }
             Task::none()
         }
@@ -246,10 +246,10 @@ pub(super) fn update(state: &mut SiloApp, message: ConfigMsg) -> Task<Message> {
             }
             // Only one row changed, so update that row instead of rewriting
             // the whole table on every keystroke.
-            if let Some(pattern) = state.config.exclude_patterns.get(index) {
-                if let Err(err) = config::update_exclude(index, pattern) {
-                    eprintln!("silo: could not save the exclude pattern: {err}");
-                }
+            if let Some(pattern) = state.config.exclude_patterns.get(index)
+                && let Err(err) = config::update_exclude(index, pattern)
+            {
+                eprintln!("silo: could not save the exclude pattern: {err}");
             }
             Task::none()
         }

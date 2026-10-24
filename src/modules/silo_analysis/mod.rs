@@ -202,13 +202,13 @@ pub fn silo_allocation(paths: &[PathBuf], excludes: &[String]) -> Allocation {
 /// files are the extremes across every folder. The average is recomputed from
 /// the merged totals.
 fn merge_stats(summaries: Vec<Stats>) -> Stats {
-    let total_files = summaries.iter().map(|s| s.total_files).sum();
+    let total_files: u64 = summaries.iter().map(|s| s.total_files).sum();
     let total_dirs = summaries.iter().map(|s| s.total_dirs).sum();
     let empty_folder_paths = summaries
         .iter()
         .flat_map(|s| s.empty_folder_paths.iter().cloned())
         .collect();
-    let total_size_bytes = summaries.iter().map(|s| s.total_size_bytes).sum();
+    let total_size_bytes: u64 = summaries.iter().map(|s| s.total_size_bytes).sum();
     let zero_byte_files = summaries
         .iter()
         .flat_map(|s| s.zero_byte_files.iter().cloned())
@@ -231,11 +231,9 @@ fn merge_stats(summaries: Vec<Stats>) -> Stats {
         .filter_map(|s| s.newest_file.clone())
         .max_by(|a, b| a.modified.cmp(&b.modified));
 
-    let average_file_size_bytes = if total_files == 0 {
-        None
-    } else {
-        Some(total_size_bytes / total_files)
-    };
+    // A silo with no files has no average size; checked_div returns None for
+    // the zero divisor.
+    let average_file_size_bytes = total_size_bytes.checked_div(total_files);
 
     Stats {
         total_files,

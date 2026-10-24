@@ -84,10 +84,10 @@ fn walk_dir(
     scan_errors: &mut Vec<String>,
     empty_folders: &mut Vec<PathBuf>,
 ) -> Result<u64, io::Error> {
-    let mut entries = fs::read_dir(dir)?;
+    let entries = fs::read_dir(dir)?;
     let mut child_count: u64 = 0;
 
-    while let Some(entry) = entries.next() {
+    for entry in entries {
         let entry = match entry {
             Ok(e) => e,
             Err(err) => {
@@ -215,11 +215,9 @@ fn compute_stats(
         .min_by(|a, b| a.size_bytes.cmp(&b.size_bytes))
         .map(|f| file_ref(root, f));
 
-    let average_file_size_bytes = if total_files == 0 {
-        None
-    } else {
-        Some(total_size_bytes / total_files)
-    };
+    // A silo with no files has no average size; checked_div returns None for
+    // the zero divisor.
+    let average_file_size_bytes = total_size_bytes.checked_div(total_files);
 
     // Oldest and newest are based on the last-modified timestamp. Files with
     // no readable timestamp are excluded from both comparisons.

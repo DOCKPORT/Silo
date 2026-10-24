@@ -71,6 +71,28 @@ const SIDE_PAD: f32 = 60.0;
 /// in reference pixels.
 const BOTTOM_PAD: f32 = 30.0;
 
+/// The inputs for the SILO ANALYSIS panel.
+pub struct ViewParams<'a> {
+    /// The live total size label.
+    pub silo_size: &'a str,
+    /// The per-extension statistics that feed the ALLOCATION box chart.
+    pub allocation: &'a [FileTypeStat],
+    /// The summary statistics that feed the STATS box table.
+    pub summary: &'a Stats,
+    /// The prepared breakdown to show, if any.
+    pub expanded: Option<&'a PreparedBreakdown>,
+    /// The extension being prepared, if any.
+    pub pending: Option<&'a str>,
+    /// The allocation generation, so the chart cache survives frames.
+    pub generation: u64,
+    /// The vertical scroll offset of the virtualized chart.
+    pub scroll_offset: f32,
+    /// The visible viewport height of the virtualized chart.
+    pub viewport_height: f32,
+    /// The expanded STATS table row, if any.
+    pub stats_row: Option<StatsRow>,
+}
+
 /// Builds the SILO ANALYSIS panel.
 ///
 /// Returns a full-window element: a bordered box with the "SILO ANALYSIS"
@@ -85,17 +107,19 @@ const BOTTOM_PAD: f32 = 30.0;
 /// subtree across frames; `scroll_offset` and `viewport_height` select the
 /// visible window of the virtualized chart; `stats_row` is the expanded
 /// STATS table row, if any.
-pub fn view<'a>(
-    silo_size: &'a str,
-    allocation: &'a [FileTypeStat],
-    summary: &'a Stats,
-    expanded: Option<&'a PreparedBreakdown>,
-    pending: Option<&'a str>,
-    generation: u64,
-    scroll_offset: f32,
-    viewport_height: f32,
-    stats_row: Option<StatsRow>,
-) -> Element<'a, Message> {
+pub fn view<'a>(params: ViewParams<'a>) -> Element<'a, Message> {
+    let ViewParams {
+        silo_size,
+        allocation,
+        summary,
+        expanded,
+        pending,
+        generation,
+        scroll_offset,
+        viewport_height,
+        stats_row,
+    } = params;
+
     // The panel top: the bottom edge of the action area plus a gap. The
     // action area positions scale, so the bottom edge must scale too or a
     // fixed gap opens up as the window shrinks.

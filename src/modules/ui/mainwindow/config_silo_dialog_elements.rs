@@ -40,32 +40,48 @@ const BOX_PAD: f32 = 10.0;
 /// The gap between the box title and its divider line, in ref px.
 const TITLE_SPACING: f32 = 8.0;
 
+/// The inputs for the two panel boxes.
+pub struct ViewParams<'a> {
+    /// Whether the pointer is over the + button in the folder box.
+    pub plus_hovered: bool,
+    /// The selected source folders shown in the folder box.
+    pub folder_paths: &'a [PathBuf],
+    /// Each folder's size label, parallel to `folder_paths`.
+    pub folder_sizes: &'a [String],
+    /// The index of the folder chip under the pointer, if any.
+    pub hovered_chip: Option<usize>,
+    /// The index of the folder chip whose remove menu is open, if any.
+    pub chip_menu: Option<usize>,
+    /// Whether the pointer is over the open folder remove menu.
+    pub menu_hovered: bool,
+    /// Whether the pointer is over the + button in the exclude box.
+    pub exclude_plus_hovered: bool,
+    /// The current exclude patterns, one string per pattern chip.
+    pub exclude_patterns: &'a [String],
+    /// The index of the exclude chip whose delete menu is open, if any.
+    pub exclude_menu: Option<usize>,
+    /// Whether the pointer is over that exclude delete menu.
+    pub exclude_menu_hovered: bool,
+}
+
 /// Builds the two panel boxes side by side.
 ///
 /// Returns a full-size row: the folder box takes 70% of the width and the
-/// exclude box the remaining 30%, separated by a small gap. `folder_paths`
-/// are the selected source folders shown in the folder box. `folder_sizes`
-/// holds each folder's size label, parallel to `folder_paths`. `hovered_chip`
-/// is the index of the folder chip under the pointer, if any. `chip_menu` is
-/// the index of the chip whose remove menu is open, if any. `menu_hovered`
-/// reports whether the pointer is over the open remove menu.
-/// `exclude_plus_hovered` reports whether the pointer is over the + button in
-/// the exclude box. `exclude_patterns` holds the current exclude patterns,
-/// one string per pattern chip. `exclude_menu` is the index of the exclude
-/// chip whose delete menu is open, if any. `exclude_menu_hovered` reports
-/// whether the pointer is over that menu.
-pub fn view<'a>(
-    plus_hovered: bool,
-    folder_paths: &[PathBuf],
-    folder_sizes: &[String],
-    hovered_chip: Option<usize>,
-    chip_menu: Option<usize>,
-    menu_hovered: bool,
-    exclude_plus_hovered: bool,
-    exclude_patterns: &'a [String],
-    exclude_menu: Option<usize>,
-    exclude_menu_hovered: bool,
-) -> Element<'a, Message> {
+/// exclude box the remaining 30%, separated by a small gap.
+pub fn view<'a>(params: ViewParams<'a>) -> Element<'a, Message> {
+    let ViewParams {
+        plus_hovered,
+        folder_paths,
+        folder_sizes,
+        hovered_chip,
+        chip_menu,
+        menu_hovered,
+        exclude_plus_hovered,
+        exclude_patterns,
+        exclude_menu,
+        exclude_menu_hovered,
+    } = params;
+
     Row::new()
         .width(Length::Fill)
         .height(Length::Fill)

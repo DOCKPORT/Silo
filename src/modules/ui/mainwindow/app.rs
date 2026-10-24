@@ -78,7 +78,7 @@ pub(super) fn silo_allocation_task() -> Task<Message> {
                 Err(_) => silo_analysis::Allocation::default(),
             }
         },
-        Message::AllocationComputed,
+        |allocation| Message::AllocationComputed(Box::new(allocation)),
     )
 }
 

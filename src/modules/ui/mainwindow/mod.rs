@@ -127,8 +127,9 @@ enum Message {
     /// A background total-size computation finished; carries the size label.
     SiloSizeComputed(String),
     /// A background file-type allocation computation finished; carries the
-    /// per-extension statistics and the files behind them.
-    AllocationComputed(Allocation),
+    /// per-extension statistics and the files behind them. Boxed because the
+    /// allocation is much larger than any other message variant.
+    AllocationComputed(Box<Allocation>),
     /// An extension row in the ALLOCATION chart was pressed; toggles its file
     /// breakdown.
     AllocationRowPressed(String),
@@ -209,7 +210,7 @@ fn update(state: &mut SiloApp, message: Message) -> Task<Message> {
             Task::none()
         }
         Message::AllocationComputed(allocation) => {
-            state.allocation = allocation;
+            state.allocation = *allocation;
             state.allocation_generation += 1;
             // The new data invalidates the prepared breakdowns. The chart
             // keeps its scroll position and clamps to the new content.
@@ -312,15 +313,17 @@ fn view(state: &SiloApp) -> iced::Element<'_, Message> {
         .and_then(|extension| state.prepared.get(extension));
 
     stack = stack.push(silo_analysis_layout::view(
-        &state.silo_size,
-        &state.allocation.stats,
-        &state.allocation.summary,
-        expanded,
-        state.pending_extension.as_deref(),
-        state.allocation_generation,
-        state.breakdown_scroll_offset,
-        state.breakdown_viewport_height,
-        state.selected_stats_row,
+        silo_analysis_layout::ViewParams {
+            silo_size: &state.silo_size,
+            allocation: &state.allocation.stats,
+            summary: &state.allocation.summary,
+            expanded,
+            pending: state.pending_extension.as_deref(),
+            generation: state.allocation_generation,
+            scroll_offset: state.breakdown_scroll_offset,
+            viewport_height: state.breakdown_viewport_height,
+            stats_row: state.selected_stats_row,
+        },
     ));
 
     if state.about_open {

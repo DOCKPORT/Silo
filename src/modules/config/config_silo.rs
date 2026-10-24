@@ -35,8 +35,6 @@ const DB_FILE_NAME: &str = "silo.db";
 /// `$HOME/.local/share` applies.
 const DB_DIR_NAME: &str = ".local/share/silo";
 
-///
-
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct SiloSettings {
     /// Selected source folders. Stored one row per folder in `silo_data_paths`.

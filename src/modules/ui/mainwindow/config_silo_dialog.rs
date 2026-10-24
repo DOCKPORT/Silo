@@ -17,6 +17,7 @@ use crate::modules::ui::theme::{BACK, DETAIL, GREY, ORANGE, TEAL};
 
 use super::Message;
 use super::config_silo_actions::{ConfigMsg, ConfigState};
+use super::config_silo_dialog_elements::ViewParams;
 
 /// The width of the dialog box, in reference pixels.
 const DIALOG_WIDTH: f32 = 900.0;
@@ -121,18 +122,18 @@ pub fn view<'a>(state: &'a ConfigState) -> Element<'a, Message> {
         .height(Length::Fill)
         .align_x(iced::alignment::Horizontal::Center)
         .spacing(sp(CONTENT_SPACING))
-        .push(super::config_silo_dialog_elements::view(
-            state.plus_hovered,
-            &state.folder_paths,
-            &state.folder_sizes,
-            state.hovered_chip,
-            state.chip_menu,
-            state.menu_hovered,
-            state.exclude_plus_hovered,
-            &state.exclude_patterns,
-            state.exclude_menu,
-            state.exclude_menu_hovered,
-        ))
+        .push(super::config_silo_dialog_elements::view(ViewParams {
+            plus_hovered: state.plus_hovered,
+            folder_paths: &state.folder_paths,
+            folder_sizes: &state.folder_sizes,
+            hovered_chip: state.hovered_chip,
+            chip_menu: state.chip_menu,
+            menu_hovered: state.menu_hovered,
+            exclude_plus_hovered: state.exclude_plus_hovered,
+            exclude_patterns: &state.exclude_patterns,
+            exclude_menu: state.exclude_menu,
+            exclude_menu_hovered: state.exclude_menu_hovered,
+        }))
         .push(
             Row::new()
                 .width(Length::Fill)

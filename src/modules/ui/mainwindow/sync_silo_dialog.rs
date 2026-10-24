@@ -16,6 +16,7 @@ use crate::modules::ui::theme::{BACK, DETAIL, ORANGE, TEAL};
 
 use super::Message;
 use super::sync_silo_actions::{SyncMsg, SyncState};
+use super::sync_silo_dialog_elements::ViewParams;
 
 /// The width of the dialog box, in reference pixels.
 const DIALOG_WIDTH: f32 = 900.0;
@@ -100,18 +101,18 @@ pub fn view<'a>(state: &'a SyncState) -> Element<'a, Message> {
         .height(Length::Fill)
         .align_x(iced::alignment::Horizontal::Center)
         .spacing(sp(CONTENT_SPACING))
-        .push(super::sync_silo_dialog_elements::view(
-            state.rsync_dest_path.as_deref(),
-            state.dest_plus_hovered,
-            state.dest_chip_hovered,
-            state.dest_menu_open,
-            state.dest_menu_hovered,
-            state.dry_run_hovered,
-            state.sync_run_hovered,
-            &state.sync_status,
-            state.sync_progress.as_ref(),
-            state.active_runs > 0,
-        ))
+        .push(super::sync_silo_dialog_elements::view(ViewParams {
+            dest_path: state.rsync_dest_path.as_deref(),
+            dest_plus_hovered: state.dest_plus_hovered,
+            dest_chip_hovered: state.dest_chip_hovered,
+            dest_menu_open: state.dest_menu_open,
+            dest_menu_hovered: state.dest_menu_hovered,
+            dry_run_hovered: state.dry_run_hovered,
+            sync_run_hovered: state.sync_run_hovered,
+            status: &state.sync_status,
+            progress: state.sync_progress.as_ref(),
+            busy: state.active_runs > 0,
+        }))
         .push(button_row(state));
 
     let dialog_box = container(content)
