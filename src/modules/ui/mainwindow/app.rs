@@ -1,10 +1,10 @@
 //! App: the Silo application shell.
 //!
 //! Boots the application, listens for window resize events, and runs the
-//! native OS helpers (folder picker, file explorer). The message dispatch and
-//! window drawing stay in [`super`] (the `mod.rs` coordinator).
+//! native folder picker. The message dispatch and window drawing stay in
+//! [`super`] (the `mod.rs` coordinator).
 
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 use iced::window::Position;
 use iced::{Subscription, Task, application};
@@ -117,13 +117,6 @@ pub(super) fn pick_folder(
         rfd::AsyncFileDialog::new().set_title(title).pick_folder(),
         move |file| map(file.map(|handle| handle.path().to_path_buf())),
     )
-}
-
-/// Opens a folder in the native OS file explorer.
-pub(super) fn open_in_file_explorer(path: &Path) {
-    if let Err(err) = std::process::Command::new("xdg-open").arg(path).spawn() {
-        eprintln!("silo: could not open the folder {path:?}: {err}");
-    }
 }
 
 /// The application's subscriptions.

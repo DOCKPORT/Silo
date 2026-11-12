@@ -10,7 +10,9 @@ use iced::Task;
 
 use crate::modules::config;
 
-use super::app::{open_in_file_explorer, pick_folder, set_hovered};
+use crate::modules::file_explorer;
+
+use super::app::{pick_folder, set_hovered};
 use super::{Message, SiloApp};
 
 /// The Config Silo dialog state.
@@ -193,7 +195,7 @@ pub(super) fn update(state: &mut SiloApp, message: ConfigMsg) -> Task<Message> {
         }
         ConfigMsg::ChipPressed(path) => {
             // Open the folder in the native OS file explorer.
-            open_in_file_explorer(&path);
+            file_explorer::open(&path);
             state.config.chip_menu = None;
             state.config.menu_hovered = false;
             Task::none()

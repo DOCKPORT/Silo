@@ -12,7 +12,9 @@ use iced::{Task, stream};
 
 use crate::modules::{config, silo_size, sync_engine};
 
-use super::app::{open_in_file_explorer, pick_folder, set_hovered};
+use crate::modules::file_explorer;
+
+use super::app::{pick_folder, set_hovered};
 use super::status_format::{StatusKind, StatusLine, dry_run_result_lines, sync_result_lines};
 use super::sync_progress::{SyncProgress, parse_line};
 use super::{Message, SiloApp};
@@ -174,7 +176,7 @@ pub(super) fn update(state: &mut SiloApp, message: SyncMsg) -> Task<Message> {
         SyncMsg::DestChipPressed => {
             // Open the destination folder in the native OS file explorer.
             if let Some(path) = &state.sync.rsync_dest_path {
-                open_in_file_explorer(path);
+                file_explorer::open(path);
             }
             state.sync.dest_menu_open = false;
             state.sync.dest_menu_hovered = false;

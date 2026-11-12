@@ -1,7 +1,7 @@
 //! Silo binary crate root.
 //! Launches the Iced main window. The subsystem modules (config, desktop_entry,
-//! sync_engine, silo_analysis, ui) are declared here, they are compiled and
-//! reachable.
+//! file_explorer, sync_engine, silo_analysis, ui) are declared here, they are
+//! compiled and reachable.
 
 mod modules;
 
